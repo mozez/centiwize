@@ -1,0 +1,864 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy ROI Calculator - Netherlands</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a5f2a 0%, #2d8f47 50%, #45b86a 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            color: #1a5f2a;
+            font-size: 2rem;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            color: #666;
+            font-size: 1rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 25px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+        }
+
+        .card h2 {
+            color: #1a5f2a;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e0e0e0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h2 .icon {
+            font-size: 1.5rem;
+        }
+
+        .required-badge {
+            background: #ff6b6b;
+            color: white;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-left: 10px;
+        }
+
+        .optional-badge {
+            background: #6c757d;
+            color: white;
+            font-size: 0.7rem;
+            padding: 3px 8px;
+            border-radius: 10px;
+            margin-left: 10px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #444;
+        }
+
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #2d8f47;
+        }
+
+        .form-group .hint {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 5px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        @media (max-width: 600px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .improvements-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .improvement-item {
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            padding: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .improvement-item:hover {
+            border-color: #2d8f47;
+            transform: translateY(-2px);
+        }
+
+        .improvement-item.selected {
+            background: #e8f5e9;
+            border-color: #2d8f47;
+        }
+
+        .improvement-item input[type="checkbox"] {
+            margin-right: 10px;
+        }
+
+        .improvement-item .name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .improvement-item .cost {
+            font-size: 0.9rem;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .improvement-item .savings {
+            font-size: 0.85rem;
+            color: #2d8f47;
+            margin-top: 3px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #1a5f2a 0%, #2d8f47 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: transform 0.3s, box-shadow 0.3s;
+            display: block;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(45, 143, 71, 0.4);
+        }
+
+        .results {
+            display: none;
+        }
+
+        .results.visible {
+            display: block;
+        }
+
+        .results-summary {
+            background: linear-gradient(135deg, #1a5f2a 0%, #2d8f47 100%);
+            color: white;
+            border-radius: 15px;
+            padding: 30px;
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .results-summary h2 {
+            color: white;
+            border-bottom: none;
+            justify-content: center;
+        }
+
+        .savings-amount {
+            font-size: 3rem;
+            font-weight: 700;
+            margin: 20px 0;
+        }
+
+        .savings-period {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+
+        .result-card {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .result-card h3 {
+            color: #1a5f2a;
+            margin-bottom: 10px;
+        }
+
+        .result-card .value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .result-card .label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+
+        .payback-bar {
+            background: #e0e0e0;
+            border-radius: 10px;
+            height: 20px;
+            margin-top: 15px;
+            overflow: hidden;
+        }
+
+        .payback-bar .fill {
+            background: linear-gradient(90deg, #2d8f47, #45b86a);
+            height: 100%;
+            border-radius: 10px;
+            transition: width 1s ease-out;
+        }
+
+        .energy-method-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .energy-method-tabs button {
+            padding: 10px 20px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .energy-method-tabs button.active {
+            border-color: #2d8f47;
+            background: #e8f5e9;
+            color: #1a5f2a;
+        }
+
+        .energy-method-content {
+            display: none;
+        }
+
+        .energy-method-content.active {
+            display: block;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 30px;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .footer a {
+            color: white;
+        }
+
+        .collapsible {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .collapsible::after {
+            content: ' +';
+            font-weight: bold;
+        }
+
+        .collapsible.open::after {
+            content: ' -';
+        }
+
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+
+        .collapsible-content.open {
+            max-height: 2000px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Energy ROI Calculator</h1>
+        <p>Calculate your potential savings from home energy improvements - Netherlands Edition</p>
+    </div>
+
+    <div class="container">
+        <!-- REQUIRED: Home Size -->
+        <div class="card">
+            <h2><span class="icon">🏠</span> Home Details <span class="required-badge">Required</span></h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="squareMeters">Floor Area (m²)</label>
+                    <input type="number" id="squareMeters" placeholder="e.g., 100" min="20" max="500">
+                    <div class="hint">Total living space. Typical Dutch home: 50-300 m²</div>
+                </div>
+                <div class="form-group">
+                    <label for="volume">Total Volume (m³)</label>
+                    <input type="number" id="volume" placeholder="Auto-calculated or enter manually">
+                    <div class="hint">Floor area × ceiling height. Leave blank for auto-calculation (×2.5m)</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REQUIRED: Energy Usage -->
+        <div class="card">
+            <h2><span class="icon">⚡</span> Energy Usage <span class="required-badge">Required</span></h2>
+
+            <div class="energy-method-tabs">
+                <button class="active" onclick="switchEnergyMethod('simple')">Simple Monthly</button>
+                <button onclick="switchEnergyMethod('annual')">Annual Statement</button>
+                <button onclick="switchEnergyMethod('detailed')">Detailed Monthly</button>
+            </div>
+
+            <!-- Method A: Simple Monthly -->
+            <div id="method-simple" class="energy-method-content active">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="monthlyElectric">Average Monthly Electric Bill (€)</label>
+                        <input type="number" id="monthlyElectric" placeholder="e.g., 120" min="0">
+                        <div class="hint">Sum of 12 months ÷ 12</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="monthlyGas">Average Monthly Gas Bill (€)</label>
+                        <input type="number" id="monthlyGas" placeholder="e.g., 150" min="0">
+                        <div class="hint">Enter €0 for all-electric homes</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method B: Annual -->
+            <div id="method-annual" class="energy-method-content">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="annualElectric">Total Annual Electric Cost (€)</label>
+                        <input type="number" id="annualElectric" placeholder="e.g., 1440" min="0">
+                        <div class="hint">Find on annual statement: "Totaal Elektriciteit"</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="annualGas">Total Annual Gas Cost (€)</label>
+                        <input type="number" id="annualGas" placeholder="e.g., 1800" min="0">
+                        <div class="hint">Find on annual statement: "Totaal Aardgas"</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Method C: Detailed Monthly -->
+            <div id="method-detailed" class="energy-method-content">
+                <p style="margin-bottom: 15px; color: #666;">Enter at least 1 month of data. More months = more accurate results.</p>
+                <div id="monthly-entries">
+                    <div class="form-row" style="margin-bottom: 15px;">
+                        <div class="form-group">
+                            <label>Month</label>
+                            <select>
+                                <option>January</option>
+                                <option>February</option>
+                                <option>March</option>
+                                <option>April</option>
+                                <option>May</option>
+                                <option>June</option>
+                                <option>July</option>
+                                <option>August</option>
+                                <option>September</option>
+                                <option>October</option>
+                                <option>November</option>
+                                <option>December</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Electric Cost (€)</label>
+                            <input type="number" placeholder="e.g., 105" min="0">
+                        </div>
+                        <div class="form-group">
+                            <label>Gas Cost (€)</label>
+                            <input type="number" placeholder="e.g., 187" min="0">
+                        </div>
+                    </div>
+                </div>
+                <button type="button" onclick="addMonthEntry()" style="background: #f0f0f0; border: 1px dashed #999; padding: 10px; width: 100%; border-radius: 8px; cursor: pointer;">+ Add Another Month</button>
+            </div>
+        </div>
+
+        <!-- REQUIRED: Energy Rates -->
+        <div class="card">
+            <h2><span class="icon">💶</span> Energy Rates <span class="required-badge">Required</span></h2>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="electricRate">Electric Rate (€/kWh)</label>
+                    <input type="number" id="electricRate" placeholder="e.g., 0.30" min="0" step="0.01">
+                    <div class="hint">Find on contract: "Elektriciteitstarief"</div>
+                </div>
+                <div class="form-group">
+                    <label for="gasRate">Gas Rate (€/m³)</label>
+                    <input type="number" id="gasRate" placeholder="e.g., 1.50" min="0" step="0.01">
+                    <div class="hint">Find on contract: "Aardgastarief"</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- REQUIRED: Select Improvements -->
+        <div class="card">
+            <h2><span class="icon">🔧</span> Energy Improvements <span class="required-badge">Select at least one</span></h2>
+            <p style="margin-bottom: 20px; color: #666;">Select the improvements you're considering for your home:</p>
+
+            <div class="improvements-grid">
+                <div class="improvement-item" onclick="toggleImprovement(this, 'attic')">
+                    <input type="checkbox" id="imp-attic">
+                    <span class="name">Attic/Roof Insulation</span>
+                    <div class="cost">Est. cost: €2,500</div>
+                    <div class="savings">Up to 20% heating savings</div>
+                </div>
+
+                <div class="improvement-item" onclick="toggleImprovement(this, 'walls')">
+                    <input type="checkbox" id="imp-walls">
+                    <span class="name">Cavity Wall Insulation</span>
+                    <div class="cost">Est. cost: €3,500</div>
+                    <div class="savings">Up to 25% heating savings</div>
+                </div>
+
+                <div class="improvement-item" onclick="toggleImprovement(this, 'windows')">
+                    <input type="checkbox" id="imp-windows">
+                    <span class="name">Energy-Efficient Windows</span>
+                    <div class="cost">Est. cost: €7,000</div>
+                    <div class="savings">Up to 15% heating savings</div>
+                </div>
+
+                <div class="improvement-item" onclick="toggleImprovement(this, 'heating')">
+                    <input type="checkbox" id="imp-heating">
+                    <span class="name">Heat Pump System</span>
+                    <div class="cost">Est. cost: €10,000</div>
+                    <div class="savings">Up to 40% energy savings</div>
+                </div>
+
+                <div class="improvement-item" onclick="toggleImprovement(this, 'solar')">
+                    <input type="checkbox" id="imp-solar">
+                    <span class="name">Solar Panels</span>
+                    <div class="cost">Est. cost: €8,000</div>
+                    <div class="savings">Up to 70% electric offset</div>
+                </div>
+
+                <div class="improvement-item" onclick="toggleImprovement(this, 'draught')">
+                    <input type="checkbox" id="imp-draught">
+                    <span class="name">Draught Proofing</span>
+                    <div class="cost">Est. cost: €1,200</div>
+                    <div class="savings">Up to 10% heating savings</div>
+                </div>
+
+                <div class="improvement-item" onclick="toggleImprovement(this, 'thermostat')">
+                    <input type="checkbox" id="imp-thermostat">
+                    <span class="name">Smart Thermostat</span>
+                    <div class="cost">Est. cost: €200</div>
+                    <div class="savings">Up to 8% heating savings</div>
+                </div>
+            </div>
+
+            <!-- Solar offset slider (shown when solar is selected) -->
+            <div id="solar-options" style="display: none; margin-top: 20px; padding: 20px; background: #f8f9fa; border-radius: 10px;">
+                <label for="solarOffset">Electricity offset from solar: <span id="solarOffsetValue">70</span>%</label>
+                <input type="range" id="solarOffset" min="30" max="100" value="70" style="width: 100%; margin-top: 10px;" oninput="document.getElementById('solarOffsetValue').textContent = this.value">
+            </div>
+        </div>
+
+        <!-- OPTIONAL: Additional Details -->
+        <div class="card">
+            <h2 class="collapsible" onclick="toggleCollapsible(this)"><span class="icon">📋</span> Additional Details <span class="optional-badge">Optional</span></h2>
+            <div class="collapsible-content">
+                <p style="margin: 20px 0 20px 0; color: #666;">These fields improve calculation accuracy but are not required.</p>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="homeAge">Home Age (years)</label>
+                        <input type="number" id="homeAge" placeholder="e.g., 25" min="0" max="200">
+                        <div class="hint">Default: 25 years</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="floors">Number of Floors</label>
+                        <select id="floors">
+                            <option value="">Select...</option>
+                            <option value="1">1 floor</option>
+                            <option value="1.5">1.5 floors</option>
+                            <option value="2">2 floors</option>
+                            <option value="3">3+ floors</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="heatingType">Current Heating System</label>
+                        <select id="heatingType">
+                            <option value="">Select...</option>
+                            <option value="gas">Natural Gas Boiler</option>
+                            <option value="electric">Electric Heating</option>
+                            <option value="heatpump">Heat Pump</option>
+                            <option value="oil">Oil Boiler</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="heatingAge">Heating System Age (years)</label>
+                        <input type="number" id="heatingAge" placeholder="e.g., 15" min="0" max="50">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="insulationLevel">Current Insulation Level</label>
+                        <select id="insulationLevel">
+                            <option value="">Select...</option>
+                            <option value="none">Minimal/None</option>
+                            <option value="poor">Poor (Rc 2.5 or less)</option>
+                            <option value="fair">Fair (Rc 3.5)</option>
+                            <option value="good">Good (Rc 4.5)</option>
+                            <option value="excellent">Excellent (Rc 6.0+)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="windowType">Current Window Type</label>
+                        <select id="windowType">
+                            <option value="">Select...</option>
+                            <option value="single">Single Glazing</option>
+                            <option value="double">Double Glazing</option>
+                            <option value="hr++">HR++ Double Glazing</option>
+                            <option value="triple">Triple Glazing</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="energyLabel">Energy Label</label>
+                        <select id="energyLabel">
+                            <option value="">Select...</option>
+                            <option value="A+++">A+++ / A++++</option>
+                            <option value="A+">A+ / A++</option>
+                            <option value="A">A</option>
+                            <option value="B">B</option>
+                            <option value="C">C</option>
+                            <option value="D">D</option>
+                            <option value="E">E</option>
+                            <option value="F">F</option>
+                            <option value="G">G</option>
+                        </select>
+                        <div class="hint">Check: www.ep-online.nl</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="postalCode">Postal Code</label>
+                        <input type="text" id="postalCode" placeholder="e.g., 1012 AB">
+                        <div class="hint">For regional climate adjustment</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Calculate Button -->
+        <button class="btn" onclick="calculateROI()">Calculate My Savings</button>
+
+        <!-- Results Section -->
+        <div class="results" id="results">
+            <div class="results-summary">
+                <h2><span class="icon">💰</span> Your Potential Savings</h2>
+                <div class="savings-amount" id="totalSavings">€0</div>
+                <div class="savings-period">Estimated annual savings</div>
+            </div>
+
+            <div class="card">
+                <h2><span class="icon">📊</span> Detailed Analysis</h2>
+                <div class="results-grid">
+                    <div class="result-card">
+                        <h3>Total Investment</h3>
+                        <div class="value" id="totalInvestment">€0</div>
+                        <div class="label">One-time cost</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>Payback Period</h3>
+                        <div class="value" id="paybackYears">0 years</div>
+                        <div class="label">Time to recover investment</div>
+                        <div class="payback-bar">
+                            <div class="fill" id="paybackFill" style="width: 0%"></div>
+                        </div>
+                    </div>
+                    <div class="result-card">
+                        <h3>25-Year Savings</h3>
+                        <div class="value" id="lifetimeSavings">€0</div>
+                        <div class="label">Net profit after payback</div>
+                    </div>
+                    <div class="result-card">
+                        <h3>CO₂ Reduction</h3>
+                        <div class="value" id="co2Reduction">0 kg</div>
+                        <div class="label">Annual emissions saved</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2><span class="icon">📈</span> Improvement Breakdown</h2>
+                <div id="improvementBreakdown"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Energy ROI Calculator - Netherlands Edition</p>
+        <p>Helping Dutch homeowners make smart energy decisions</p>
+    </div>
+
+    <script>
+        // Track selected improvements
+        const selectedImprovements = new Set();
+
+        // Improvement data
+        const improvements = {
+            attic: { name: 'Attic/Roof Insulation', cost: 2500, savingsPercent: 0.20, type: 'heating' },
+            walls: { name: 'Cavity Wall Insulation', cost: 3500, savingsPercent: 0.25, type: 'heating' },
+            windows: { name: 'Energy-Efficient Windows', cost: 7000, savingsPercent: 0.15, type: 'heating' },
+            heating: { name: 'Heat Pump System', cost: 10000, savingsPercent: 0.40, type: 'both' },
+            solar: { name: 'Solar Panels', cost: 8000, savingsPercent: 0.70, type: 'electric' },
+            draught: { name: 'Draught Proofing', cost: 1200, savingsPercent: 0.10, type: 'heating' },
+            thermostat: { name: 'Smart Thermostat', cost: 200, savingsPercent: 0.08, type: 'heating' }
+        };
+
+        function toggleImprovement(element, id) {
+            const checkbox = element.querySelector('input[type="checkbox"]');
+            checkbox.checked = !checkbox.checked;
+            element.classList.toggle('selected', checkbox.checked);
+
+            if (checkbox.checked) {
+                selectedImprovements.add(id);
+            } else {
+                selectedImprovements.delete(id);
+            }
+
+            // Show/hide solar options
+            document.getElementById('solar-options').style.display =
+                selectedImprovements.has('solar') ? 'block' : 'none';
+        }
+
+        function switchEnergyMethod(method) {
+            // Update tabs
+            document.querySelectorAll('.energy-method-tabs button').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.energy-method-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById('method-' + method).classList.add('active');
+        }
+
+        function addMonthEntry() {
+            const container = document.getElementById('monthly-entries');
+            const entry = document.createElement('div');
+            entry.className = 'form-row';
+            entry.style.marginBottom = '15px';
+            entry.innerHTML = `
+                <div class="form-group">
+                    <label>Month</label>
+                    <select>
+                        <option>January</option>
+                        <option>February</option>
+                        <option>March</option>
+                        <option>April</option>
+                        <option>May</option>
+                        <option>June</option>
+                        <option>July</option>
+                        <option>August</option>
+                        <option>September</option>
+                        <option>October</option>
+                        <option>November</option>
+                        <option>December</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Electric Cost (€)</label>
+                    <input type="number" placeholder="e.g., 105" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Gas Cost (€)</label>
+                    <input type="number" placeholder="e.g., 187" min="0">
+                </div>
+            `;
+            container.appendChild(entry);
+        }
+
+        function toggleCollapsible(element) {
+            element.classList.toggle('open');
+            const content = element.nextElementSibling;
+            content.classList.toggle('open');
+        }
+
+        function calculateROI() {
+            // Get input values
+            const squareMeters = parseFloat(document.getElementById('squareMeters').value) || 100;
+            const volume = parseFloat(document.getElementById('volume').value) || squareMeters * 2.5;
+
+            // Get energy costs (from active method)
+            let annualElectricCost = 0;
+            let annualGasCost = 0;
+
+            const activeMethod = document.querySelector('.energy-method-content.active').id;
+
+            if (activeMethod === 'method-simple') {
+                annualElectricCost = (parseFloat(document.getElementById('monthlyElectric').value) || 120) * 12;
+                annualGasCost = (parseFloat(document.getElementById('monthlyGas').value) || 150) * 12;
+            } else if (activeMethod === 'method-annual') {
+                annualElectricCost = parseFloat(document.getElementById('annualElectric').value) || 1440;
+                annualGasCost = parseFloat(document.getElementById('annualGas').value) || 1800;
+            } else {
+                // Detailed method - sum up entries
+                const entries = document.querySelectorAll('#monthly-entries .form-row');
+                entries.forEach(entry => {
+                    const inputs = entry.querySelectorAll('input');
+                    annualElectricCost += parseFloat(inputs[0].value) || 0;
+                    annualGasCost += parseFloat(inputs[1].value) || 0;
+                });
+                // Annualize if less than 12 months
+                const monthCount = entries.length;
+                if (monthCount > 0 && monthCount < 12) {
+                    annualElectricCost = (annualElectricCost / monthCount) * 12;
+                    annualGasCost = (annualGasCost / monthCount) * 12;
+                }
+            }
+
+            const totalAnnualEnergy = annualElectricCost + annualGasCost;
+
+            // Calculate savings from selected improvements
+            let totalInvestment = 0;
+            let totalAnnualSavings = 0;
+            let breakdownHtml = '';
+
+            // Track savings to avoid double-counting
+            let heatingSavingsPercent = 0;
+            let electricSavingsPercent = 0;
+
+            selectedImprovements.forEach(id => {
+                const imp = improvements[id];
+                totalInvestment += imp.cost;
+
+                let savingsAmount = 0;
+
+                if (imp.type === 'heating') {
+                    // Diminishing returns for stacking insulation
+                    const effectivePercent = imp.savingsPercent * (1 - heatingSavingsPercent * 0.3);
+                    savingsAmount = annualGasCost * effectivePercent;
+                    heatingSavingsPercent += imp.savingsPercent;
+                } else if (imp.type === 'electric') {
+                    // Solar panels
+                    const solarOffset = parseFloat(document.getElementById('solarOffset').value) / 100;
+                    savingsAmount = annualElectricCost * solarOffset;
+                    electricSavingsPercent = solarOffset;
+                } else if (imp.type === 'both') {
+                    // Heat pump affects both
+                    savingsAmount = (annualGasCost * 0.35) + (annualElectricCost * 0.1);
+                }
+
+                totalAnnualSavings += savingsAmount;
+
+                breakdownHtml += `
+                    <div style="display: flex; justify-content: space-between; padding: 15px; background: #f8f9fa; border-radius: 8px; margin-bottom: 10px;">
+                        <div>
+                            <strong>${imp.name}</strong>
+                            <div style="color: #666; font-size: 0.9rem;">Investment: €${imp.cost.toLocaleString()}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <strong style="color: #2d8f47;">€${Math.round(savingsAmount).toLocaleString()}/year</strong>
+                            <div style="color: #666; font-size: 0.9rem;">Payback: ${(imp.cost / savingsAmount).toFixed(1)} years</div>
+                        </div>
+                    </div>
+                `;
+            });
+
+            // Calculate results
+            const paybackYears = totalInvestment / totalAnnualSavings;
+            const lifetimeSavings = (totalAnnualSavings * 25) - totalInvestment;
+            const co2Reduction = Math.round((annualGasCost / 1.5) * 1.8 * (heatingSavingsPercent || 0.2)); // kg CO2
+
+            // Update display
+            document.getElementById('totalSavings').textContent = `€${Math.round(totalAnnualSavings).toLocaleString()}`;
+            document.getElementById('totalInvestment').textContent = `€${totalInvestment.toLocaleString()}`;
+            document.getElementById('paybackYears').textContent = `${paybackYears.toFixed(1)} years`;
+            document.getElementById('lifetimeSavings').textContent = `€${Math.round(lifetimeSavings).toLocaleString()}`;
+            document.getElementById('co2Reduction').textContent = `${co2Reduction.toLocaleString()} kg`;
+            document.getElementById('improvementBreakdown').innerHTML = breakdownHtml || '<p style="color: #666;">Select at least one improvement above to see breakdown.</p>';
+
+            // Animate payback bar (max 15 years = 100%)
+            const paybackPercent = Math.min((paybackYears / 15) * 100, 100);
+            setTimeout(() => {
+                document.getElementById('paybackFill').style.width = paybackPercent + '%';
+            }, 100);
+
+            // Show results
+            document.getElementById('results').classList.add('visible');
+            document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Auto-calculate volume when square meters changes
+        document.getElementById('squareMeters').addEventListener('input', function() {
+            const volumeField = document.getElementById('volume');
+            if (!volumeField.value) {
+                volumeField.placeholder = `Auto: ${(this.value * 2.5).toFixed(0)} m³`;
+            }
+        });
+    </script>
+</body>
+</html>
