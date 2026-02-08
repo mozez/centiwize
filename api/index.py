@@ -109,6 +109,18 @@ async def send_email_report(request: EmailReportRequest):
             error="Email service not configured"
         )
 
+    # Build conditional parts
+    property_html = f'<p><strong>Property:</strong> {request.address}</p>' if request.address else ''
+    area_html = f'<p><strong>Floor Area:</strong> {request.area} m² | <strong>Volume:</strong> {request.volume} m³</p>' if request.area else ''
+    improvements_html = build_improvements_html(request.improvements)
+    whatsapp_num = BUSINESS_PHONE.replace('+', '').replace(' ', '')
+
+    annual_savings = request.annualSavings or 0
+    total_investment = request.totalInvestment or 0
+    lifetime_savings = request.lifetimeSavings or 0
+    co2_reduction = request.co2Reduction or 0
+    payback_years = request.paybackYears or '0'
+
     # Build email HTML content
     html_content = f"""
     <!DOCTYPE html>
@@ -139,39 +151,39 @@ async def send_email_report(request: EmailReportRequest):
                 <p>Hi {request.name},</p>
                 <p>Thank you for using the Centiwize Energy Calculator. Here's your personalized energy savings report:</p>
 
-                {f'<p><strong>Property:</strong> {request.address}</p>' if request.address else ''}
-                {f'<p><strong>Floor Area:</strong> {request.area} m² | <strong>Volume:</strong> {request.volume} m³</p>' if request.area else ''}
+                {property_html}
+                {area_html}
 
                 <div class="highlight">
                     <p style="margin: 0; text-align: center;">Estimated Annual Savings</p>
-                    <p class="savings" style="text-align: center; margin: 10px 0;">€{request.annualSavings or 0:,}</p>
+                    <p class="savings" style="text-align: center; margin: 10px 0;">€{annual_savings:,}</p>
                 </div>
 
                 <div style="text-align: center;">
                     <div class="stat">
-                        <div class="stat-value">€{request.totalInvestment or 0:,}</div>
+                        <div class="stat-value">€{total_investment:,}</div>
                         <div class="stat-label">Total Investment</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">{request.paybackYears or '0'} years</div>
+                        <div class="stat-value">{payback_years} years</div>
                         <div class="stat-label">Payback Period</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">€{request.lifetimeSavings or 0:,}</div>
+                        <div class="stat-value">€{lifetime_savings:,}</div>
                         <div class="stat-label">25-Year Savings</div>
                     </div>
                     <div class="stat">
-                        <div class="stat-value">{request.co2Reduction or 0:,} kg</div>
-                        <div class="stat-label">CO₂ Reduction/Year</div>
+                        <div class="stat-value">{co2_reduction:,} kg</div>
+                        <div class="stat-label">CO2 Reduction/Year</div>
                     </div>
                 </div>
 
-                {build_improvements_html(request.improvements)}
+                {improvements_html}
 
                 <div style="text-align: center; margin-top: 30px;">
                     <p>Ready to take the next step?</p>
-                    <a href="https://wa.me/{BUSINESS_PHONE.replace('+', '')}?text=Hi! I received my Centiwize report and would like to discuss my options." class="cta">
-                        💬 Chat on WhatsApp
+                    <a href="https://wa.me/{whatsapp_num}?text=Hi! I received my Centiwize report and would like to discuss my options." class="cta">
+                        Chat on WhatsApp
                     </a>
                 </div>
 
