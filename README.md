@@ -1,38 +1,126 @@
-# Energy ROI Calculator - Netherlands
+# Centiwize - Energy ROI Calculator
 
-A web-based calculator to help Dutch homeowners estimate potential savings from energy improvements.
+A web application to help Dutch homeowners calculate potential savings from energy improvements.
 
 ## Features
 
-- **Home Details**: Enter floor area and volume
-- **Energy Usage**: Three input methods (simple monthly, annual, or detailed monthly)
-- **Energy Rates**: Track electricity and gas rates
-- **Improvement Selection**: Choose from 7 common energy upgrades
-- **ROI Calculation**: See payback period, annual savings, and 25-year returns
-- **CO2 Impact**: Estimate environmental benefits
+- **Address Lookup**: Auto-fill property data from official BAG register
+- **Energy Usage Input**: Three methods (simple, annual, detailed)
+- **7 Energy Improvements**: Calculate ROI for each upgrade
+- **Detailed Analysis**: Payback period, lifetime savings, CO2 reduction
 
-## Energy Improvements Covered
+## Tech Stack
 
-1. Attic/Roof Insulation - Up to 20% heating savings
-2. Cavity Wall Insulation - Up to 25% heating savings
-3. Energy-Efficient Windows - Up to 15% heating savings
-4. Heat Pump System - Up to 40% energy savings
-5. Solar Panels - Up to 70% electric offset
-6. Draught Proofing - Up to 10% heating savings
-7. Smart Thermostat - Up to 8% heating savings
+- **Frontend**: HTML, CSS, JavaScript
+- **Backend**: Python FastAPI
+- **Hosting**: Vercel (serverless)
+- **Data Sources**: Kadaster BAG API, PDOK
 
-## How to Use
+## Deployment to Vercel
 
-1. Enter your home's floor area (m²)
-2. Enter your energy costs using one of three methods
-3. Select the improvements you're considering
-4. Click "Calculate My Savings"
-5. View your personalized ROI analysis
+### 1. Install Vercel CLI
 
-## Live Website
+```bash
+npm install -g vercel
+```
 
-Visit: https://mozez.github.io/centiwize/
+### 2. Login to Vercel
+
+```bash
+vercel login
+```
+
+### 3. Deploy
+
+```bash
+cd centiwize
+vercel
+```
+
+### 4. Set Environment Variables
+
+Go to your Vercel dashboard → Project Settings → Environment Variables and add:
+
+| Variable | Description |
+|----------|-------------|
+| `KADASTER_API_KEY` | Your Kadaster BAG API key (get free at [kadaster.nl](https://www.kadaster.nl/zakelijk/producten/adressen-en-gebouwen/bag-api-individuele-bevragingen)) |
+
+### 5. Redeploy
+
+```bash
+vercel --prod
+```
+
+## Local Development
+
+### Prerequisites
+
+- Python 3.9+
+- pip
+
+### Setup
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set environment variable
+export KADASTER_API_KEY="your-api-key"  # Optional
+
+# Run server
+uvicorn api.index:app --reload
+```
+
+Open http://localhost:8000 in your browser.
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/` | GET | API info |
+| `/api/health` | GET | Health check |
+| `/api/lookup` | GET | Address lookup |
+
+### Address Lookup Parameters
+
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `postcode` | Yes | Dutch postal code (e.g., 1012AB) |
+| `huisnummer` | Yes | House number |
+| `toevoeging` | No | House number addition (e.g., A, bis) |
+
+### Example
+
+```bash
+curl "https://your-app.vercel.app/api/lookup?postcode=1012AB&huisnummer=1"
+```
+
+## Project Structure
+
+```
+centiwize/
+├── api/
+│   └── index.py          # FastAPI backend
+├── public/
+│   └── index.html        # Frontend
+├── requirements.txt      # Python dependencies
+├── vercel.json          # Vercel configuration
+└── README.md
+```
+
+## Data Sources
+
+- **Kadaster BAG API**: Official building register (floor area, build year)
+- **PDOK Locatieserver**: Fallback for address validation
 
 ## Author
 
 Mosesdot
+
+## License
+
+MIT
