@@ -1153,6 +1153,14 @@
     </div>
 
     <script>
+        // Global error handler
+        window.onerror = function(msg, url, lineNo, columnNo, error) {
+            console.error('Global error:', msg, 'at', url, ':', lineNo);
+            return false;
+        };
+
+        console.log('Script starting...');
+
         // ============================================
         // SUPABASE CONFIGURATION
         // ============================================
@@ -1218,8 +1226,14 @@
         // ============================================
 
         function openAuthModal(tab = 'login') {
-            document.getElementById('authModal').classList.add('active');
-            switchAuthTab(tab);
+            console.log('openAuthModal called with tab:', tab);
+            try {
+                document.getElementById('authModal').classList.add('active');
+                switchAuthTab(tab);
+            } catch (e) {
+                console.error('Error opening auth modal:', e);
+                alert('Error opening modal: ' + e.message);
+            }
         }
 
         function closeAuthModal() {
