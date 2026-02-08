@@ -12,6 +12,10 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 FROM_EMAIL = os.environ.get("FROM_EMAIL", "noreply@centiwize.com")
 BUSINESS_PHONE = os.environ.get("BUSINESS_PHONE", "+31612345678")
 
+# Supabase configuration (public keys only - safe to expose)
+SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
+SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
+
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
@@ -66,6 +70,16 @@ class EmailReportResponse(BaseModel):
 @app.get("/")
 async def root():
     return {"message": "Centiwize Energy ROI API", "docs": "/docs"}
+
+
+@app.get("/api/config")
+async def get_config():
+    """Return public configuration for the frontend"""
+    return {
+        "supabase_url": SUPABASE_URL,
+        "supabase_anon_key": SUPABASE_ANON_KEY,
+        "business_phone": BUSINESS_PHONE
+    }
 
 
 @app.get("/api/health", response_model=HealthResponse)
