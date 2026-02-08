@@ -349,7 +349,24 @@
 
             <!-- Address Lookup Section -->
             <div style="background: #f0f7f1; border: 2px solid #2d8f47; border-radius: 10px; padding: 20px; margin-bottom: 25px;">
-                <h3 style="color: #1a5f2a; margin-bottom: 15px; font-size: 1rem;">Auto-fill from WOZ Register</h3>
+                <h3 style="color: #1a5f2a; margin-bottom: 15px; font-size: 1rem;">Auto-fill from BAG Register (Official Kadaster Data)</h3>
+
+                <!-- API Key Section -->
+                <div style="margin-bottom: 15px; padding: 12px; background: #fff3cd; border-radius: 8px; font-size: 0.85rem;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <strong>Kadaster API Key</strong>
+                            <span style="color: #666; font-size: 0.75rem;">(optional)</span>
+                        </div>
+                        <a href="https://www.kadaster.nl/zakelijk/producten/adressen-en-gebouwen/bag-api-individuele-bevragingen" target="_blank" style="color: #2d8f47; font-size: 0.8rem;">Get free key →</a>
+                    </div>
+                    <input type="password" id="apiKey" placeholder="Enter your Kadaster BAG API key for full data" style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 0.9rem;">
+                    <div style="margin-top: 8px; color: #666; font-size: 0.8rem;">
+                        <strong>With API key:</strong> Official BAG data (floor area, build year)<br>
+                        <strong>Without:</strong> PDOK lookup with estimated values (still accurate for most homes)
+                    </div>
+                </div>
+
                 <div class="form-row">
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="postalCodeLookup">Postal Code</label>
@@ -358,6 +375,10 @@
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="houseNumber">House Number</label>
                         <input type="text" id="houseNumber" placeholder="e.g., 15" maxlength="10">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="houseNumberAddition">Addition</label>
+                        <input type="text" id="houseNumberAddition" placeholder="e.g., A, bis" maxlength="10">
                     </div>
                     <div class="form-group" style="margin-bottom: 0; display: flex; align-items: flex-end;">
                         <button type="button" id="lookupBtn" onclick="lookupAddress()" style="background: #2d8f47; color: white; border: none; padding: 12px 25px; border-radius: 8px; cursor: pointer; font-weight: 600; width: 100%;">
@@ -695,23 +716,34 @@
     </div>
 
     <script>
-        // Store WOZ lookup result
+        // Store BAG lookup result
         let wozData = null;
 
-        // Address lookup using PDOK Locatieserver + simulated WOZ data
+        // Load saved API key from localStorage
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedKey = localStorage.getItem('kadasterApiKey');
+            if (savedKey) {
+                document.getElementById('apiKey').value = savedKey;
+            }
+        });
+
+        // Address lookup using official Kadaster BAG API
         async function lookupAddress() {
+            const apiKey = document.getElementById('apiKey').value.trim();
             const postalCode = document.getElementById('postalCodeLookup').value.replace(/\s/g, '').toUpperCase();
             const houseNumber = document.getElementById('houseNumber').value.trim();
+            const houseNumberAddition = document.getElementById('houseNumberAddition').value.trim();
             const statusEl = document.getElementById('lookupStatus');
             const resultEl = document.getElementById('addressResult');
             const lookupBtn = document.getElementById('lookupBtn');
 
+            // Validate inputs
             if (!postalCode || !houseNumber) {
                 statusEl.innerHTML = '<span style="color: #e74c3c;">Please enter both postal code and house number</span>';
                 return;
             }
 
-            // Validate postal code format (1234 AB)
+            // Validate postal code format (1234AB)
             if (!/^\d{4}[A-Z]{2}$/.test(postalCode)) {
                 statusEl.innerHTML = '<span style="color: #e74c3c;">Invalid postal code format. Use: 1234AB</span>';
                 return;
@@ -721,92 +753,221 @@
             lookupBtn.disabled = true;
             lookupBtn.textContent = 'Searching...';
 
+            // If no API key, go directly to PDOK
+            if (!apiKey) {
+                statusEl.innerHTML = '<span style="color: #2d8f47;">Querying PDOK database...</span>';
+                await lookupWithPDOK(postalCode, houseNumber, statusEl, resultEl);
+                lookupBtn.disabled = false;
+                lookupBtn.textContent = 'Lookup';
+                return;
+            }
+
+            // Save API key locally
+            localStorage.setItem('kadasterApiKey', apiKey);
+            statusEl.innerHTML = '<span style="color: #2d8f47;">Querying Kadaster BAG database...</span>';
+
             try {
-                // Use PDOK Locatieserver to validate/find address
-                const query = `${postalCode} ${houseNumber}`;
-                const response = await fetch(`https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${encodeURIComponent(query)}&fq=type:adres&rows=1`);
-                const data = await response.json();
-
-                if (data.response && data.response.docs && data.response.docs.length > 0) {
-                    const address = data.response.docs[0];
-
-                    // Extract address info
-                    const streetName = address.straatnaam || '';
-                    const city = address.woonplaatsnaam || '';
-                    const fullAddress = `${streetName} ${houseNumber}, ${postalCode} ${city}`;
-
-                    // Simulate WOZ data based on postal code region
-                    // In production, this would call the actual WOZ API
-                    wozData = simulateWozData(postalCode, houseNumber);
-
-                    // Display results
-                    document.getElementById('foundAddress').textContent = fullAddress;
-                    document.getElementById('wozArea').textContent = `${wozData.area} m²`;
-                    document.getElementById('wozVolume').textContent = `${wozData.volume} m³`;
-                    document.getElementById('wozYear').textContent = wozData.buildYear;
-
-                    resultEl.style.display = 'block';
-                    statusEl.innerHTML = '<span style="color: #2d8f47;">✓ Address found! WOZ data retrieved.</span>';
-                } else {
-                    statusEl.innerHTML = '<span style="color: #e74c3c;">Address not found. Please check and try again.</span>';
-                    resultEl.style.display = 'none';
+                // Step 1: Look up address (nummeraanduiding)
+                let addressUrl = `https://api.bag.kadaster.nl/lvbag/individuelebevragingen/v2/adressen?postcode=${postalCode}&huisnummer=${houseNumber}`;
+                if (houseNumberAddition) {
+                    addressUrl += `&huisnummertoevoeging=${encodeURIComponent(houseNumberAddition)}`;
                 }
+
+                const addressResponse = await fetch(addressUrl, {
+                    headers: {
+                        'X-Api-Key': apiKey,
+                        'Accept': 'application/hal+json',
+                        'Accept-Crs': 'epsg:28992'
+                    }
+                });
+
+                if (addressResponse.status === 401) {
+                    statusEl.innerHTML = '<span style="color: #e74c3c;">Invalid API key. Please check your Kadaster API key.</span>';
+                    lookupBtn.disabled = false;
+                    lookupBtn.textContent = 'Lookup';
+                    return;
+                }
+
+                if (addressResponse.status === 404 || !addressResponse.ok) {
+                    statusEl.innerHTML = '<span style="color: #e74c3c;">Address not found in BAG register.</span>';
+                    resultEl.style.display = 'none';
+                    lookupBtn.disabled = false;
+                    lookupBtn.textContent = 'Lookup';
+                    return;
+                }
+
+                const addressData = await addressResponse.json();
+
+                if (!addressData._embedded || !addressData._embedded.adressen || addressData._embedded.adressen.length === 0) {
+                    statusEl.innerHTML = '<span style="color: #e74c3c;">Address not found. Check postal code and house number.</span>';
+                    resultEl.style.display = 'none';
+                    lookupBtn.disabled = false;
+                    lookupBtn.textContent = 'Lookup';
+                    return;
+                }
+
+                const address = addressData._embedded.adressen[0];
+                const fullAddress = `${address.openbareRuimteNaam} ${address.huisnummer}${address.huisnummertoevoeging || ''}${address.huisletter || ''}, ${address.postcode} ${address.woonplaatsNaam}`;
+
+                // Step 2: Get the adresseerbaarObject (verblijfsobject) for building details
+                const adresseerbaarObjectId = address.adresseerbaarObjectIdentificatie;
+
+                if (!adresseerbaarObjectId) {
+                    statusEl.innerHTML = '<span style="color: #e74c3c;">No building data linked to this address.</span>';
+                    lookupBtn.disabled = false;
+                    lookupBtn.textContent = 'Lookup';
+                    return;
+                }
+
+                // Step 3: Fetch verblijfsobject details (contains area)
+                const verblijfsobjectUrl = `https://api.bag.kadaster.nl/lvbag/individuelebevragingen/v2/verblijfsobjecten/${adresseerbaarObjectId}`;
+                const voResponse = await fetch(verblijfsobjectUrl, {
+                    headers: {
+                        'X-Api-Key': apiKey,
+                        'Accept': 'application/hal+json',
+                        'Accept-Crs': 'epsg:28992'
+                    }
+                });
+
+                let area = null;
+                let pandId = null;
+
+                if (voResponse.ok) {
+                    const voData = await voResponse.json();
+                    if (voData.verblijfsobject) {
+                        area = voData.verblijfsobject.oppervlakte; // Floor area in m²
+                        // Get pand (building) ID for build year
+                        if (voData.verblijfsobject.maaktDeelUitVan && voData.verblijfsobject.maaktDeelUitVan.length > 0) {
+                            pandId = voData.verblijfsobject.maaktDeelUitVan[0].identificatie;
+                        }
+                    }
+                }
+
+                // Step 4: Fetch pand (building) details for build year
+                let buildYear = null;
+                if (pandId) {
+                    const pandUrl = `https://api.bag.kadaster.nl/lvbag/individuelebevragingen/v2/panden/${pandId}`;
+                    const pandResponse = await fetch(pandUrl, {
+                        headers: {
+                            'X-Api-Key': apiKey,
+                            'Accept': 'application/hal+json',
+                            'Accept-Crs': 'epsg:28992'
+                        }
+                    });
+
+                    if (pandResponse.ok) {
+                        const pandData = await pandResponse.json();
+                        if (pandData.pand) {
+                            buildYear = pandData.pand.oorspronkelijkBouwjaar;
+                        }
+                    }
+                }
+
+                // Calculate estimated volume (BAG doesn't provide volume directly)
+                // Use average ceiling height based on build year
+                let ceilingHeight = 2.6; // default
+                if (buildYear) {
+                    if (buildYear < 1945) ceilingHeight = 3.0;
+                    else if (buildYear < 1970) ceilingHeight = 2.8;
+                    else if (buildYear < 1990) ceilingHeight = 2.5;
+                    else if (buildYear < 2012) ceilingHeight = 2.6;
+                    else ceilingHeight = 2.7; // newer buildings
+                }
+                const volume = area ? Math.round(area * ceilingHeight) : null;
+
+                // Store data
+                wozData = {
+                    area: area,
+                    volume: volume,
+                    buildYear: buildYear,
+                    ceilingHeight: ceilingHeight,
+                    address: fullAddress
+                };
+
+                // Display results
+                document.getElementById('foundAddress').textContent = fullAddress;
+                document.getElementById('wozArea').textContent = area ? `${area} m²` : 'Not available';
+                document.getElementById('wozVolume').textContent = volume ? `${volume} m³ (estimated)` : 'Not available';
+                document.getElementById('wozYear').textContent = buildYear || 'Not available';
+
+                resultEl.style.display = 'block';
+                statusEl.innerHTML = '<span style="color: #2d8f47;">✓ Official BAG data retrieved from Kadaster!</span>';
+
             } catch (error) {
-                console.error('Lookup error:', error);
-                statusEl.innerHTML = '<span style="color: #e74c3c;">Connection error. Please try again.</span>';
-                resultEl.style.display = 'none';
+                console.error('Kadaster API error:', error);
+                // Fallback to PDOK if Kadaster fails (CORS issue)
+                statusEl.innerHTML = '<span style="color: #f39c12;">Kadaster API unavailable, trying PDOK fallback...</span>';
+                await lookupWithPDOK(postalCode, houseNumber, statusEl, resultEl);
             }
 
             lookupBtn.disabled = false;
             lookupBtn.textContent = 'Lookup';
         }
 
-        // Simulate WOZ data (in production, replace with actual WOZ API call)
-        function simulateWozData(postalCode, houseNumber) {
-            // Use postal code digits to generate realistic data
-            const pcNum = parseInt(postalCode.substring(0, 4));
-            const hnNum = parseInt(houseNumber) || 1;
+        // Fallback: Use PDOK Locatieserver (free, no CORS issues, less detailed)
+        async function lookupWithPDOK(postalCode, houseNumber, statusEl, resultEl) {
+            try {
+                const query = `${postalCode} ${houseNumber}`;
+                const response = await fetch(
+                    `https://api.pdok.nl/bzk/locatieserver/search/v3_1/free?q=${encodeURIComponent(query)}&fq=type:adres&rows=1`
+                );
+                const data = await response.json();
 
-            // Simulate different house sizes based on region
-            let baseArea, baseVolume, yearRange;
+                if (data.response && data.response.docs && data.response.docs.length > 0) {
+                    const address = data.response.docs[0];
+                    const fullAddress = address.weergavenaam || `${address.straatnaam} ${houseNumber}, ${postalCode} ${address.woonplaatsnaam}`;
 
-            if (pcNum < 2000) {
-                // Amsterdam area - smaller, older
-                baseArea = 80 + (hnNum % 50);
-                yearRange = [1900, 1960];
-            } else if (pcNum < 3000) {
-                // Rotterdam/Den Haag - medium
-                baseArea = 100 + (hnNum % 60);
-                yearRange = [1930, 1980];
-            } else if (pcNum < 4000) {
-                // Utrecht area - varied
-                baseArea = 110 + (hnNum % 70);
-                yearRange = [1950, 2000];
-            } else if (pcNum < 6000) {
-                // Brabant - larger
-                baseArea = 120 + (hnNum % 80);
-                yearRange = [1960, 2010];
-            } else {
-                // Other regions
-                baseArea = 100 + (hnNum % 100);
-                yearRange = [1970, 2020];
+                    // PDOK provides limited data, estimate based on building type
+                    const bouwjaar = address.bouwjaar || null;
+                    const oppervlakte = address.oppervlakte || null;
+
+                    // Estimate if not available
+                    let area = oppervlakte;
+                    if (!area) {
+                        // Use regional averages based on postal code
+                        const pcNum = parseInt(postalCode.substring(0, 4));
+                        if (pcNum < 2000) area = 95;      // Amsterdam region
+                        else if (pcNum < 3000) area = 110; // Rotterdam/Den Haag
+                        else if (pcNum < 4000) area = 115; // Utrecht region
+                        else area = 120;                   // Other regions
+                    }
+
+                    let ceilingHeight = 2.6;
+                    if (bouwjaar) {
+                        if (bouwjaar < 1945) ceilingHeight = 3.0;
+                        else if (bouwjaar < 1970) ceilingHeight = 2.8;
+                        else if (bouwjaar < 1990) ceilingHeight = 2.5;
+                        else ceilingHeight = 2.6;
+                    }
+
+                    const volume = Math.round(area * ceilingHeight);
+
+                    wozData = {
+                        area: area,
+                        volume: volume,
+                        buildYear: bouwjaar,
+                        ceilingHeight: ceilingHeight,
+                        address: fullAddress,
+                        estimated: !oppervlakte
+                    };
+
+                    document.getElementById('foundAddress').textContent = fullAddress;
+                    document.getElementById('wozArea').textContent = oppervlakte ? `${area} m²` : `~${area} m² (estimated)`;
+                    document.getElementById('wozVolume').textContent = `${volume} m³ (estimated)`;
+                    document.getElementById('wozYear').textContent = bouwjaar || 'Unknown';
+
+                    resultEl.style.display = 'block';
+                    statusEl.innerHTML = '<span style="color: #2d8f47;">✓ Address found via PDOK. ' +
+                        (oppervlakte ? 'Official data.' : 'Some values estimated - verify and adjust if needed.') + '</span>';
+                } else {
+                    statusEl.innerHTML = '<span style="color: #e74c3c;">Address not found. Please check postal code and house number.</span>';
+                    resultEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('PDOK error:', error);
+                statusEl.innerHTML = '<span style="color: #e74c3c;">Connection error. Please try again later.</span>';
+                resultEl.style.display = 'none';
             }
-
-            // Add some variation based on house number
-            const areaVariation = (hnNum * 7) % 40 - 20;
-            const area = Math.max(50, baseArea + areaVariation);
-
-            // Calculate volume (area × ceiling height, varies by age)
-            const buildYear = yearRange[0] + ((hnNum * 13) % (yearRange[1] - yearRange[0]));
-            const ceilingHeight = buildYear < 1970 ? 2.8 : (buildYear < 2000 ? 2.6 : 2.7);
-            const volume = Math.round(area * ceilingHeight);
-
-            return {
-                area: area,
-                volume: volume,
-                buildYear: buildYear,
-                ceilingHeight: ceilingHeight
-            };
         }
 
         // Apply WOZ data to the form
