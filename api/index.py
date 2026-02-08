@@ -1,11 +1,16 @@
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 import httpx
 import os
 
 app = FastAPI(title="Centiwize Energy ROI API")
+
+# Email configuration (using Resend)
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
+FROM_EMAIL = os.environ.get("FROM_EMAIL", "noreply@centiwize.com")
+BUSINESS_PHONE = os.environ.get("BUSINESS_PHONE", "+31612345678")
 
 # CORS middleware for frontend
 app.add_middleware(
@@ -35,6 +40,27 @@ class AddressLookupResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     kadaster_configured: bool
+    email_configured: bool
+
+
+class EmailReportRequest(BaseModel):
+    email: str
+    name: str = "Homeowner"
+    address: Optional[str] = None
+    area: Optional[str] = None
+    volume: Optional[str] = None
+    annualSavings: Optional[int] = None
+    totalInvestment: Optional[int] = None
+    paybackYears: Optional[str] = None
+    lifetimeSavings: Optional[int] = None
+    co2Reduction: Optional[int] = None
+    improvements: Optional[List[str]] = None
+
+
+class EmailReportResponse(BaseModel):
+    success: bool
+    message: Optional[str] = None
+    error: Optional[str] = None
 
 
 @app.get("/")
@@ -46,8 +72,131 @@ async def root():
 async def health_check():
     return HealthResponse(
         status="healthy",
-        kadaster_configured=bool(KADASTER_API_KEY)
+        kadaster_configured=bool(KADASTER_API_KEY),
+        email_configured=bool(RESEND_API_KEY)
     )
+
+
+@app.post("/api/send-report", response_model=EmailReportResponse)
+async def send_email_report(request: EmailReportRequest):
+    """Send energy savings report via email"""
+
+    if not RESEND_API_KEY:
+        return EmailReportResponse(
+            success=False,
+            error="Email service not configured"
+        )
+
+    # Build email HTML content
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <style>
+            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+            .header {{ background: linear-gradient(135deg, #1a5f2a 0%, #2d8f47 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+            .content {{ background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }}
+            .highlight {{ background: #e8f5e9; padding: 20px; border-radius: 8px; margin: 20px 0; }}
+            .savings {{ font-size: 2.5em; color: #1a5f2a; font-weight: bold; }}
+            .stat {{ display: inline-block; width: 45%; margin: 10px 2%; text-align: center; padding: 15px; background: white; border-radius: 8px; }}
+            .stat-value {{ font-size: 1.5em; color: #1a5f2a; font-weight: bold; }}
+            .stat-label {{ color: #666; font-size: 0.9em; }}
+            .improvements {{ background: white; padding: 15px; border-radius: 8px; margin-top: 20px; }}
+            .footer {{ text-align: center; margin-top: 30px; color: #666; font-size: 0.9em; }}
+            .cta {{ display: inline-block; background: #25D366; color: white; padding: 15px 30px; text-decoration: none; border-radius: 8px; margin-top: 20px; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Your Energy Savings Report</h1>
+                <p>Centiwize Energy ROI Calculator</p>
+            </div>
+            <div class="content">
+                <p>Hi {request.name},</p>
+                <p>Thank you for using the Centiwize Energy Calculator. Here's your personalized energy savings report:</p>
+
+                {"<p><strong>Property:</strong> " + request.address + "</p>" if request.address else ""}
+                {"<p><strong>Floor Area:</strong> " + str(request.area) + " m² | <strong>Volume:</strong> " + str(request.volume) + " m³</p>" if request.area else ""}
+
+                <div class="highlight">
+                    <p style="margin: 0; text-align: center;">Estimated Annual Savings</p>
+                    <p class="savings" style="text-align: center; margin: 10px 0;">€{request.annualSavings or 0:,}</p>
+                </div>
+
+                <div style="text-align: center;">
+                    <div class="stat">
+                        <div class="stat-value">€{request.totalInvestment or 0:,}</div>
+                        <div class="stat-label">Total Investment</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">{request.paybackYears or '0'} years</div>
+                        <div class="stat-label">Payback Period</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">€{request.lifetimeSavings or 0:,}</div>
+                        <div class="stat-label">25-Year Savings</div>
+                    </div>
+                    <div class="stat">
+                        <div class="stat-value">{request.co2Reduction or 0:,} kg</div>
+                        <div class="stat-label">CO₂ Reduction/Year</div>
+                    </div>
+                </div>
+
+                {"<div class='improvements'><strong>Selected Improvements:</strong><ul>" + "".join(f"<li>{imp}</li>" for imp in (request.improvements or [])) + "</ul></div>" if request.improvements else ""}
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <p>Ready to take the next step?</p>
+                    <a href="https://wa.me/{BUSINESS_PHONE.replace('+', '')}?text=Hi! I received my Centiwize report and would like to discuss my options." class="cta">
+                        💬 Chat on WhatsApp
+                    </a>
+                </div>
+
+                <div class="footer">
+                    <p>This report was generated by Centiwize Energy ROI Calculator.</p>
+                    <p>Calculations are estimates based on typical Dutch homes and may vary.</p>
+                </div>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    try:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {RESEND_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "from": FROM_EMAIL,
+                    "to": [request.email],
+                    "subject": f"Your Energy Savings Report - €{request.annualSavings or 0:,}/year potential",
+                    "html": html_content
+                },
+                timeout=10.0
+            )
+
+            if response.is_success:
+                return EmailReportResponse(
+                    success=True,
+                    message="Report sent successfully"
+                )
+            else:
+                error_data = response.json()
+                return EmailReportResponse(
+                    success=False,
+                    error=error_data.get("message", "Failed to send email")
+                )
+
+    except Exception as e:
+        return EmailReportResponse(
+            success=False,
+            error=str(e)
+        )
 
 
 @app.get("/api/lookup", response_model=AddressLookupResponse)

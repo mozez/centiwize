@@ -648,6 +648,30 @@
             </div>
         </div>
 
+        <!-- Contact Information -->
+        <div class="card">
+            <h2><span class="icon">📧</span> Get Your Report</h2>
+            <p style="color: #666; margin-bottom: 20px;">Enter your contact details to receive your personalized energy savings report and follow-up consultation.</p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="userEmail">Email Address</label>
+                    <input type="email" id="userEmail" placeholder="your@email.com">
+                    <div class="hint">We'll send your detailed report here</div>
+                </div>
+                <div class="form-group">
+                    <label for="userPhone">Phone Number (WhatsApp)</label>
+                    <input type="tel" id="userPhone" placeholder="+31 6 12345678">
+                    <div class="hint">For follow-up via WhatsApp</div>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="userName">Your Name</label>
+                <input type="text" id="userName" placeholder="Your name">
+            </div>
+        </div>
+
         <!-- Calculate Button -->
         <button class="btn" onclick="calculateROI()">Calculate My Savings</button>
 
@@ -691,6 +715,20 @@
             <div class="card">
                 <h2><span class="icon">📈</span> Improvement Breakdown</h2>
                 <div id="improvementBreakdown"></div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="card" id="actionButtons">
+                <h2><span class="icon">🚀</span> Next Steps</h2>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <button onclick="sendEmailReport()" style="background: linear-gradient(135deg, #1a5f2a 0%, #2d8f47 100%); color: white; border: none; padding: 15px 20px; border-radius: 10px; cursor: pointer; font-size: 1rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <span style="font-size: 1.3rem;">📧</span> Email My Report
+                    </button>
+                    <button onclick="contactWhatsApp()" style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; border: none; padding: 15px 20px; border-radius: 10px; cursor: pointer; font-size: 1rem; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px;">
+                        <span style="font-size: 1.3rem;">💬</span> WhatsApp Consultation
+                    </button>
+                </div>
+                <div id="actionStatus" style="margin-top: 15px; text-align: center; font-size: 0.9rem;"></div>
             </div>
         </div>
     </div>
@@ -820,6 +858,90 @@
                     }, 1500);
                 }
             });
+        }
+
+        // Store calculation results for report
+        let lastCalculation = null;
+
+        // Send email report via backend
+        async function sendEmailReport() {
+            const email = document.getElementById('userEmail').value.trim();
+            const name = document.getElementById('userName').value.trim();
+            const statusEl = document.getElementById('actionStatus');
+
+            if (!email) {
+                statusEl.innerHTML = '<span style="color: #e74c3c;">Please enter your email address above.</span>';
+                document.getElementById('userEmail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+
+            if (!lastCalculation) {
+                statusEl.innerHTML = '<span style="color: #e74c3c;">Please calculate your savings first.</span>';
+                return;
+            }
+
+            statusEl.innerHTML = '<span style="color: #2d8f47;">Sending your report...</span>';
+
+            try {
+                const response = await fetch('/api/send-report', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        email: email,
+                        name: name || 'Homeowner',
+                        address: wozData?.address || 'Not provided',
+                        area: document.getElementById('squareMeters').value,
+                        volume: document.getElementById('volume').value,
+                        ...lastCalculation
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    statusEl.innerHTML = '<span style="color: #2d8f47;">✓ Report sent! Check your inbox.</span>';
+                } else {
+                    statusEl.innerHTML = `<span style="color: #e74c3c;">${data.error || 'Failed to send. Please try again.'}</span>`;
+                }
+            } catch (error) {
+                console.error('Email error:', error);
+                statusEl.innerHTML = '<span style="color: #e74c3c;">Connection error. Please try again.</span>';
+            }
+        }
+
+        // Open WhatsApp with pre-filled message
+        function contactWhatsApp() {
+            const phone = document.getElementById('userPhone').value.trim();
+            const name = document.getElementById('userName').value.trim() || 'A homeowner';
+            const statusEl = document.getElementById('actionStatus');
+
+            // Your business WhatsApp number (replace with actual number)
+            const businessPhone = '31612345678'; // Format: country code + number, no + or spaces
+
+            // Build message with calculation results
+            let message = `Hi! I'm ${name} and I just used the Centiwize Energy Calculator.\n\n`;
+
+            if (wozData?.address) {
+                message += `📍 Property: ${wozData.address}\n`;
+            }
+
+            if (lastCalculation) {
+                message += `\n📊 My Results:\n`;
+                message += `• Annual Savings: €${lastCalculation.annualSavings}\n`;
+                message += `• Investment: €${lastCalculation.totalInvestment}\n`;
+                message += `• Payback: ${lastCalculation.paybackYears} years\n`;
+                message += `\nI'd like to discuss my energy improvement options.`;
+            } else {
+                message += `I'd like to learn more about energy improvements for my home.`;
+            }
+
+            // Create WhatsApp URL
+            const whatsappUrl = `https://wa.me/${businessPhone}?text=${encodeURIComponent(message)}`;
+
+            // Open WhatsApp
+            window.open(whatsappUrl, '_blank');
+
+            statusEl.innerHTML = '<span style="color: #25D366;">✓ Opening WhatsApp...</span>';
         }
 
         // Track selected improvements
@@ -1006,6 +1128,16 @@
             setTimeout(() => {
                 document.getElementById('paybackFill').style.width = paybackPercent + '%';
             }, 100);
+
+            // Store calculation for email/WhatsApp
+            lastCalculation = {
+                annualSavings: Math.round(totalAnnualSavings),
+                totalInvestment: totalInvestment,
+                paybackYears: paybackYears.toFixed(1),
+                lifetimeSavings: Math.round(lifetimeSavings),
+                co2Reduction: co2Reduction,
+                improvements: Array.from(selectedImprovements).map(id => improvements[id].name)
+            };
 
             // Show results
             document.getElementById('results').classList.add('visible');
