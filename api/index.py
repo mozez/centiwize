@@ -91,6 +91,14 @@ async def health_check():
     )
 
 
+def build_improvements_html(improvements):
+    """Build HTML for improvements list"""
+    if not improvements:
+        return ""
+    items = "".join(f"<li>{imp}</li>" for imp in improvements)
+    return f"<div class='improvements'><strong>Selected Improvements:</strong><ul>{items}</ul></div>"
+
+
 @app.post("/api/send-report", response_model=EmailReportResponse)
 async def send_email_report(request: EmailReportRequest):
     """Send energy savings report via email"""
@@ -131,8 +139,8 @@ async def send_email_report(request: EmailReportRequest):
                 <p>Hi {request.name},</p>
                 <p>Thank you for using the Centiwize Energy Calculator. Here's your personalized energy savings report:</p>
 
-                {"<p><strong>Property:</strong> " + request.address + "</p>" if request.address else ""}
-                {"<p><strong>Floor Area:</strong> " + str(request.area) + " m² | <strong>Volume:</strong> " + str(request.volume) + " m³</p>" if request.area else ""}
+                {f'<p><strong>Property:</strong> {request.address}</p>' if request.address else ''}
+                {f'<p><strong>Floor Area:</strong> {request.area} m² | <strong>Volume:</strong> {request.volume} m³</p>' if request.area else ''}
 
                 <div class="highlight">
                     <p style="margin: 0; text-align: center;">Estimated Annual Savings</p>
@@ -158,7 +166,7 @@ async def send_email_report(request: EmailReportRequest):
                     </div>
                 </div>
 
-                {"<div class='improvements'><strong>Selected Improvements:</strong><ul>" + "".join(f"<li>{imp}</li>" for imp in (request.improvements or [])) + "</ul></div>" if request.improvements else ""}
+                {build_improvements_html(request.improvements)}
 
                 <div style="text-align: center; margin-top: 30px;">
                     <p>Ready to take the next step?</p>
