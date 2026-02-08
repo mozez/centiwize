@@ -445,5 +445,5 @@ def estimate_ceiling_height(build_year: Optional[int]) -> float:
         return 2.7  # newer buildings tend to have slightly higher ceilings
 
 
-# For Vercel serverless
-handler = app
+# Export for Vercel - FastAPI ASGI app
+# Vercel automatically detects FastAPI and serves it correctly
