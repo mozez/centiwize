@@ -1230,11 +1230,14 @@
             }
         });
 
+        console.log('DOMContentLoaded handler registered, defining functions...');
+
         // ============================================
         // AUTHENTICATION FUNCTIONS
         // ============================================
 
-        function openAuthModal(tab = 'login') {
+        console.log('About to define openAuthModal');
+        window.openAuthModal = function(tab = 'login') {
             console.log('openAuthModal called with tab:', tab);
             try {
                 document.getElementById('authModal').classList.add('active');
@@ -1243,7 +1246,8 @@
                 console.error('Error opening auth modal:', e);
                 alert('Error opening modal: ' + e.message);
             }
-        }
+        };
+        console.log('openAuthModal defined:', typeof window.openAuthModal);
 
         function closeAuthModal() {
             document.getElementById('authModal').classList.remove('active');
@@ -2182,6 +2186,35 @@
                 volumeField.placeholder = `Auto: ${(this.value * 2.5).toFixed(0)} m³`;
             }
         });
+
+        // Expose all onclick functions to global scope
+        window.closeAuthModal = closeAuthModal;
+        window.switchAuthTab = switchAuthTab;
+        window.showForgotPassword = showForgotPassword;
+        window.handleLogin = handleLogin;
+        window.handleRegister = handleRegister;
+        window.handleForgotPassword = handleForgotPassword;
+        window.handleLogout = handleLogout;
+        window.toggleUserMenu = toggleUserMenu;
+        window.toggleNotifications = toggleNotifications;
+        window.markNotificationRead = markNotificationRead;
+        window.showDashboard = showDashboard;
+        window.showProfile = showProfile;
+        window.showSavedCalculations = showSavedCalculations;
+        window.hideDashboard = hideDashboard;
+        window.saveProfile = saveProfile;
+        window.lookupAddress = lookupAddress;
+        window.applyWozData = applyWozData;
+        window.toggleCollapsible = toggleCollapsible;
+        window.switchEnergyMethod = switchEnergyMethod;
+        window.addMonthEntry = addMonthEntry;
+        window.toggleImprovement = toggleImprovement;
+        window.calculateROI = calculateROI;
+        window.saveCalculation = saveCalculation;
+        window.sendEmailReport = sendEmailReport;
+        window.contactWhatsApp = contactWhatsApp;
+
+        console.log('All functions exposed to window. Script fully loaded.');
     </script>
 </body>
 </html>
