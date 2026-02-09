@@ -1178,7 +1178,7 @@
         let BUSINESS_PHONE = '+31612345678';
 
         // Initialize Supabase client
-        let supabase = null;
+        let supabaseClient = null;
         let currentUser = null;
 
         // Initialize on page load
@@ -1201,17 +1201,17 @@
             }
 
             try {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
                 // Check for existing session
-                const { data: { session } } = await supabase.auth.getSession();
+                const { data: { session } } = await supabaseClient.auth.getSession();
                 if (session) {
                     currentUser = session.user;
                     await onUserLoggedIn(currentUser);
                 }
 
                 // Listen for auth changes
-                supabase.auth.onAuthStateChange(async (event, session) => {
+                supabaseClient.auth.onAuthStateChange(async (event, session) => {
                     if (event === 'SIGNED_IN' && session) {
                         currentUser = session.user;
                         await onUserLoggedIn(currentUser);
@@ -1293,7 +1293,7 @@
         }
 
         async function handleLogin() {
-            if (!supabase) {
+            if (!supabaseClient) {
                 showAuthError('Authentication not configured. Please set up Supabase.');
                 return;
             }
@@ -1307,7 +1307,7 @@
             }
 
             try {
-                const { data, error } = await supabase.auth.signInWithPassword({
+                const { data, error } = await supabaseClient.auth.signInWithPassword({
                     email: email,
                     password: password
                 });
@@ -1321,7 +1321,7 @@
         }
 
         async function handleRegister() {
-            if (!supabase) {
+            if (!supabaseClient) {
                 showAuthError('Authentication not configured. Please set up Supabase.');
                 return;
             }
@@ -1342,7 +1342,7 @@
             }
 
             try {
-                const { data, error } = await supabase.auth.signUp({
+                const { data, error } = await supabaseClient.auth.signUp({
                     email: email,
                     password: password,
                     options: {
@@ -1362,7 +1362,7 @@
         }
 
         async function handleForgotPassword() {
-            if (!supabase) return;
+            if (!supabaseClient) return;
 
             const email = document.getElementById('forgotEmail').value.trim();
 
@@ -1372,7 +1372,7 @@
             }
 
             try {
-                const { error } = await supabase.auth.resetPasswordForEmail(email, {
+                const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
                     redirectTo: window.location.origin
                 });
 
@@ -1385,9 +1385,9 @@
         }
 
         async function handleLogout() {
-            if (!supabase) return;
+            if (!supabaseClient) return;
 
-            await supabase.auth.signOut();
+            await supabaseClient.auth.signOut();
             document.getElementById('userDropdown').style.display = 'none';
         }
 
@@ -1436,10 +1436,10 @@
         // ============================================
 
         async function loadNotifications() {
-            if (!supabase || !currentUser) return;
+            if (!supabaseClient || !currentUser) return;
 
             try {
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('notifications')
                     .select('*')
                     .eq('user_id', currentUser.id)
@@ -1477,10 +1477,10 @@
         }
 
         async function markNotificationRead(id) {
-            if (!supabase) return;
+            if (!supabaseClient) return;
 
             try {
-                await supabase
+                await supabaseClient
                     .from('notifications')
                     .update({ read: true })
                     .eq('id', id);
@@ -1492,9 +1492,9 @@
         }
 
         function subscribeToNotifications() {
-            if (!supabase || !currentUser) return;
+            if (!supabaseClient || !currentUser) return;
 
-            supabase
+            supabaseClient
                 .channel('notifications')
                 .on('postgres_changes', {
                     event: 'INSERT',
@@ -1552,17 +1552,17 @@
         }
 
         async function loadDashboardData() {
-            if (!supabase || !currentUser) return;
+            if (!supabaseClient || !currentUser) return;
 
             try {
                 // Load properties count
-                const { count: propCount } = await supabase
+                const { count: propCount } = await supabaseClient
                     .from('properties')
                     .select('*', { count: 'exact', head: true })
                     .eq('user_id', currentUser.id);
 
                 // Load calculations
-                const { data: calcs, count: calcCount } = await supabase
+                const { data: calcs, count: calcCount } = await supabaseClient
                     .from('calculations')
                     .select('*', { count: 'exact' })
                     .eq('user_id', currentUser.id)
@@ -1580,7 +1580,7 @@
                 renderRecentCalculations(calcs || []);
 
                 // Load updates
-                const { data: updates } = await supabase
+                const { data: updates } = await supabaseClient
                     .from('energy_updates')
                     .select('*')
                     .order('created_at', { ascending: false })
@@ -1637,20 +1637,20 @@
         }
 
         async function saveProfile() {
-            if (!supabase || !currentUser) return;
+            if (!supabaseClient || !currentUser) return;
 
             const name = document.getElementById('profileName').value.trim();
             const phone = document.getElementById('profilePhone').value.trim();
 
             try {
-                const { error } = await supabase.auth.updateUser({
+                const { error } = await supabaseClient.auth.updateUser({
                     data: { full_name: name, phone: phone }
                 });
 
                 if (error) throw error;
 
                 // Also update profiles table
-                await supabase
+                await supabaseClient
                     .from('profiles')
                     .update({ full_name: name, phone: phone, updated_at: new Date().toISOString() })
                     .eq('id', currentUser.id);
@@ -1662,10 +1662,10 @@
         }
 
         async function loadSavedCalculations() {
-            if (!supabase || !currentUser) return;
+            if (!supabaseClient || !currentUser) return;
 
             try {
-                const { data: calcs } = await supabase
+                const { data: calcs } = await supabaseClient
                     .from('calculations')
                     .select('*, properties(*)')
                     .eq('user_id', currentUser.id)
@@ -1702,7 +1702,7 @@
         // ============================================
 
         async function saveCalculation() {
-            if (!supabase || !currentUser) {
+            if (!supabaseClient || !currentUser) {
                 openAuthModal('register');
                 return;
             }
@@ -1717,7 +1717,7 @@
                 let propertyId = null;
 
                 if (wozData?.address) {
-                    const { data: prop, error: propError } = await supabase
+                    const { data: prop, error: propError } = await supabaseClient
                         .from('properties')
                         .upsert({
                             user_id: currentUser.id,
@@ -1737,7 +1737,7 @@
                 }
 
                 // Save calculation
-                const { error } = await supabase
+                const { error } = await supabaseClient
                     .from('calculations')
                     .insert({
                         user_id: currentUser.id,
