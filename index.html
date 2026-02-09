@@ -5,8 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Energy ROI Calculator - Netherlands</title>
     <meta name="description" content="Calculate your energy savings potential with the Centiwize Energy ROI Calculator. Get personalized recommendations for solar panels, insulation, heat pumps, and more for Dutch homes.">
-    <!-- Supabase JS Client -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         * {
             margin: 0;
@@ -1162,92 +1160,43 @@
     </footer>
 
     <script>
-        // Global error handler
-        window.onerror = function(msg, url, lineNo, columnNo, error) {
-            console.error('Global error:', msg, 'at', url, ':', lineNo);
-            return false;
-        };
-
-        console.log('Script starting...');
-
         // ============================================
-        // SUPABASE CONFIGURATION
+        // CONFIGURATION
         // ============================================
-        let SUPABASE_URL = '';
-        let SUPABASE_ANON_KEY = '';
         let BUSINESS_PHONE = '+31612345678';
-
-        // Initialize Supabase client
-        let supabaseClient = null;
         let currentUser = null;
+        let authEnabled = false;
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async () => {
-            // Load config from backend
             try {
                 const configResponse = await fetch('/api/config');
                 const config = await configResponse.json();
-                SUPABASE_URL = config.supabase_url || '';
-                SUPABASE_ANON_KEY = config.supabase_anon_key || '';
                 BUSINESS_PHONE = config.business_phone || '+31612345678';
-            } catch (e) {
-                console.log('Could not load config:', e);
-            }
-
-            // Check if Supabase is configured
-            if (!SUPABASE_URL || SUPABASE_URL.includes('your-project')) {
-                console.log('Supabase not configured - running in demo mode');
-                return;
-            }
-
-            try {
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                authEnabled = config.auth_enabled || false;
 
                 // Check for existing session
-                const { data: { session } } = await supabaseClient.auth.getSession();
-                if (session) {
-                    currentUser = session.user;
-                    await onUserLoggedIn(currentUser);
-                }
-
-                // Listen for auth changes
-                supabaseClient.auth.onAuthStateChange(async (event, session) => {
-                    if (event === 'SIGNED_IN' && session) {
-                        currentUser = session.user;
+                if (authEnabled) {
+                    const sessionResponse = await fetch('/api/auth/session', { credentials: 'include' });
+                    const sessionData = await sessionResponse.json();
+                    if (sessionData.success && sessionData.user) {
+                        currentUser = sessionData.user;
                         await onUserLoggedIn(currentUser);
-                    } else if (event === 'SIGNED_OUT') {
-                        currentUser = null;
-                        onUserLoggedOut();
                     }
-                });
-
-                // Subscribe to realtime notifications
-                if (currentUser) {
-                    subscribeToNotifications();
                 }
-            } catch (error) {
-                console.error('Supabase init error:', error);
+            } catch (e) {
+                console.log('Init error:', e);
             }
         });
-
-        console.log('DOMContentLoaded handler registered, defining functions...');
 
         // ============================================
         // AUTHENTICATION FUNCTIONS
         // ============================================
 
-        console.log('About to define openAuthModal');
-        window.openAuthModal = function(tab = 'login') {
-            console.log('openAuthModal called with tab:', tab);
-            try {
-                document.getElementById('authModal').classList.add('active');
-                switchAuthTab(tab);
-            } catch (e) {
-                console.error('Error opening auth modal:', e);
-                alert('Error opening modal: ' + e.message);
-            }
-        };
-        console.log('openAuthModal defined:', typeof window.openAuthModal);
+        function openAuthModal(tab = 'login') {
+            document.getElementById('authModal').classList.add('active');
+            switchAuthTab(tab);
+        }
 
         function closeAuthModal() {
             document.getElementById('authModal').classList.remove('active');
@@ -1293,11 +1242,6 @@
         }
 
         async function handleLogin() {
-            if (!supabaseClient) {
-                showAuthError('Authentication not configured. Please set up Supabase.');
-                return;
-            }
-
             const email = document.getElementById('loginEmail').value.trim();
             const password = document.getElementById('loginPassword').value;
 
@@ -1307,13 +1251,22 @@
             }
 
             try {
-                const { data, error } = await supabaseClient.auth.signInWithPassword({
-                    email: email,
-                    password: password
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password })
                 });
 
-                if (error) throw error;
+                const data = await response.json();
 
+                if (!data.success) {
+                    showAuthError(data.error || 'Login failed');
+                    return;
+                }
+
+                currentUser = data.user;
+                await onUserLoggedIn(currentUser);
                 closeAuthModal();
             } catch (error) {
                 showAuthError(error.message);
@@ -1321,14 +1274,8 @@
         }
 
         async function handleRegister() {
-            if (!supabaseClient) {
-                showAuthError('Authentication not configured. Please set up Supabase.');
-                return;
-            }
-
             const name = document.getElementById('registerName').value.trim();
             const email = document.getElementById('registerEmail').value.trim();
-            const phone = document.getElementById('registerPhone').value.trim();
             const password = document.getElementById('registerPassword').value;
 
             if (!email || !password) {
@@ -1342,28 +1289,33 @@
             }
 
             try {
-                const { data, error } = await supabaseClient.auth.signUp({
-                    email: email,
-                    password: password,
-                    options: {
-                        data: {
-                            full_name: name,
-                            phone: phone
-                        }
-                    }
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ email, password, name })
                 });
 
-                if (error) throw error;
+                const data = await response.json();
 
-                showAuthSuccess('Account created! Please check your email to verify.');
+                if (!data.success) {
+                    showAuthError(data.error || 'Registration failed');
+                    return;
+                }
+
+                if (data.user && data.session) {
+                    currentUser = data.user;
+                    await onUserLoggedIn(currentUser);
+                    closeAuthModal();
+                } else {
+                    showAuthSuccess('Account created! Please check your email to verify.');
+                }
             } catch (error) {
                 showAuthError(error.message);
             }
         }
 
         async function handleForgotPassword() {
-            if (!supabaseClient) return;
-
             const email = document.getElementById('forgotEmail').value.trim();
 
             if (!email) {
@@ -1372,11 +1324,16 @@
             }
 
             try {
-                const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-                    redirectTo: window.location.origin
+                const response = await fetch(`/api/auth/forgot-password?email=${encodeURIComponent(email)}`, {
+                    method: 'POST'
                 });
 
-                if (error) throw error;
+                const data = await response.json();
+
+                if (!data.success) {
+                    showAuthError(data.error || 'Failed to send reset email');
+                    return;
+                }
 
                 showAuthSuccess('Password reset link sent! Check your email.');
             } catch (error) {
@@ -1385,9 +1342,11 @@
         }
 
         async function handleLogout() {
-            if (!supabaseClient) return;
-
-            await supabaseClient.auth.signOut();
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            } catch (e) {}
+            currentUser = null;
+            onUserLoggedOut();
             document.getElementById('userDropdown').style.display = 'none';
         }
 
@@ -1436,19 +1395,15 @@
         // ============================================
 
         async function loadNotifications() {
-            if (!supabaseClient || !currentUser) return;
+            if (!currentUser) return;
 
             try {
-                const { data, error } = await supabaseClient
-                    .from('notifications')
-                    .select('*')
-                    .eq('user_id', currentUser.id)
-                    .order('created_at', { ascending: false })
-                    .limit(20);
+                const response = await fetch('/api/notifications', { credentials: 'include' });
+                const data = await response.json();
 
-                if (error) throw error;
-
-                renderNotifications(data || []);
+                if (data.success) {
+                    renderNotifications(data.notifications || []);
+                }
             } catch (error) {
                 console.error('Load notifications error:', error);
             }
@@ -1477,14 +1432,13 @@
         }
 
         async function markNotificationRead(id) {
-            if (!supabaseClient) return;
+            if (!currentUser) return;
 
             try {
-                await supabaseClient
-                    .from('notifications')
-                    .update({ read: true })
-                    .eq('id', id);
-
+                await fetch(`/api/notifications/${id}/read`, {
+                    method: 'PUT',
+                    credentials: 'include'
+                });
                 await loadNotifications();
             } catch (error) {
                 console.error('Mark read error:', error);
@@ -1492,21 +1446,11 @@
         }
 
         function subscribeToNotifications() {
-            if (!supabaseClient || !currentUser) return;
-
-            supabaseClient
-                .channel('notifications')
-                .on('postgres_changes', {
-                    event: 'INSERT',
-                    schema: 'public',
-                    table: 'notifications',
-                    filter: `user_id=eq.${currentUser.id}`
-                }, payload => {
-                    // Show toast notification
-                    showToast(payload.new.title, payload.new.message);
-                    loadNotifications();
-                })
-                .subscribe();
+            // Poll for new notifications every 60 seconds
+            if (!currentUser) return;
+            setInterval(() => {
+                if (currentUser) loadNotifications();
+            }, 60000);
         }
 
         function showToast(title, message) {
@@ -1552,41 +1496,21 @@
         }
 
         async function loadDashboardData() {
-            if (!supabaseClient || !currentUser) return;
+            if (!currentUser) return;
 
             try {
-                // Load properties count
-                const { count: propCount } = await supabaseClient
-                    .from('properties')
-                    .select('*', { count: 'exact', head: true })
-                    .eq('user_id', currentUser.id);
+                const response = await fetch('/api/calculations', { credentials: 'include' });
+                const data = await response.json();
+                const calcs = data.calculations || [];
 
-                // Load calculations
-                const { data: calcs, count: calcCount } = await supabaseClient
-                    .from('calculations')
-                    .select('*', { count: 'exact' })
-                    .eq('user_id', currentUser.id)
-                    .order('created_at', { ascending: false })
-                    .limit(5);
-
-                // Calculate total savings
-                const totalSavings = (calcs || []).reduce((sum, c) => sum + (c.annual_savings || 0), 0);
+                const totalSavings = calcs.reduce((sum, c) => sum + (c.annual_savings || 0), 0);
 
                 document.getElementById('dashTotalSavings').textContent = `€${Math.round(totalSavings).toLocaleString()}`;
-                document.getElementById('dashProperties').textContent = propCount || 0;
-                document.getElementById('dashCalcs').textContent = calcCount || 0;
+                document.getElementById('dashProperties').textContent = '0';
+                document.getElementById('dashCalcs').textContent = calcs.length;
 
-                // Render recent calculations
-                renderRecentCalculations(calcs || []);
-
-                // Load updates
-                const { data: updates } = await supabaseClient
-                    .from('energy_updates')
-                    .select('*')
-                    .order('created_at', { ascending: false })
-                    .limit(3);
-
-                renderLatestUpdates(updates || []);
+                renderRecentCalculations(calcs.slice(0, 5));
+                renderLatestUpdates([]);
 
             } catch (error) {
                 console.error('Dashboard load error:', error);
@@ -1637,47 +1561,47 @@
         }
 
         async function saveProfile() {
-            if (!supabaseClient || !currentUser) return;
+            if (!currentUser) return;
 
             const name = document.getElementById('profileName').value.trim();
             const phone = document.getElementById('profilePhone').value.trim();
 
             try {
-                const { error } = await supabaseClient.auth.updateUser({
-                    data: { full_name: name, phone: phone }
+                const response = await fetch('/api/profile', {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ full_name: name, phone: phone })
                 });
 
-                if (error) throw error;
-
-                // Also update profiles table
-                await supabaseClient
-                    .from('profiles')
-                    .update({ full_name: name, phone: phone, updated_at: new Date().toISOString() })
-                    .eq('id', currentUser.id);
-
-                alert('Profile saved!');
+                const data = await response.json();
+                if (data.success) {
+                    alert('Profile saved!');
+                } else {
+                    alert('Error saving profile: ' + (data.error || 'Unknown error'));
+                }
             } catch (error) {
                 alert('Error saving profile: ' + error.message);
             }
         }
 
         async function loadSavedCalculations() {
-            if (!supabaseClient || !currentUser) return;
+            if (!currentUser) return;
 
             try {
-                const { data: calcs } = await supabaseClient
-                    .from('calculations')
-                    .select('*, properties(*)')
-                    .eq('user_id', currentUser.id)
-                    .order('created_at', { ascending: false });
+                const response = await fetch('/api/calculations', {
+                    credentials: 'include'
+                });
+                const data = await response.json();
 
                 const container = document.getElementById('savedCalculationsList');
 
-                if (!calcs || calcs.length === 0) {
+                if (!data.success || !data.calculations || data.calculations.length === 0) {
                     container.innerHTML = '<p style="color: #666;">No saved calculations yet.</p>';
                     return;
                 }
 
+                const calcs = data.calculations;
                 container.innerHTML = calcs.map(c => `
                     <div class="saved-calc-item">
                         <div class="info">
@@ -1702,7 +1626,7 @@
         // ============================================
 
         async function saveCalculation() {
-            if (!supabaseClient || !currentUser) {
+            if (!currentUser) {
                 openAuthModal('register');
                 return;
             }
@@ -1713,44 +1637,35 @@
             }
 
             try {
-                // First save/update property
-                let propertyId = null;
-
-                if (wozData?.address) {
-                    const { data: prop, error: propError } = await supabaseClient
-                        .from('properties')
-                        .upsert({
-                            user_id: currentUser.id,
+                const response = await fetch('/api/calculations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({
+                        property: wozData?.address ? {
                             address: wozData.address,
                             postal_code: document.getElementById('postalCodeLookup')?.value || '',
                             house_number: document.getElementById('houseNumber')?.value || '',
                             area_m2: parseInt(document.getElementById('squareMeters').value) || null,
                             volume_m3: parseInt(document.getElementById('volume').value) || null,
                             build_year: wozData.buildYear || null
-                        }, {
-                            onConflict: 'user_id,address'
-                        })
-                        .select()
-                        .single();
+                        } : null,
+                        calculation: {
+                            improvements: lastCalculation.improvements,
+                            annual_savings: lastCalculation.annualSavings,
+                            total_investment: lastCalculation.totalInvestment,
+                            payback_years: parseFloat(lastCalculation.paybackYears),
+                            lifetime_savings: lastCalculation.lifetimeSavings,
+                            co2_reduction: lastCalculation.co2Reduction
+                        }
+                    })
+                });
 
-                    if (!propError && prop) propertyId = prop.id;
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to save calculation');
                 }
-
-                // Save calculation
-                const { error } = await supabaseClient
-                    .from('calculations')
-                    .insert({
-                        user_id: currentUser.id,
-                        property_id: propertyId,
-                        improvements: lastCalculation.improvements,
-                        annual_savings: lastCalculation.annualSavings,
-                        total_investment: lastCalculation.totalInvestment,
-                        payback_years: parseFloat(lastCalculation.paybackYears),
-                        lifetime_savings: lastCalculation.lifetimeSavings,
-                        co2_reduction: lastCalculation.co2Reduction
-                    });
-
-                if (error) throw error;
 
                 showToast('Saved!', 'Your calculation has been saved to your account.');
 
