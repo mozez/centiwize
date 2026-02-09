@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Energy ROI Calculator - Netherlands</title>
+    <meta name="description" content="Calculate your energy savings potential with the Centiwize Energy ROI Calculator. Get personalized recommendations for solar panels, insulation, heat pumps, and more for Dutch homes.">
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
@@ -549,6 +550,14 @@
             color: white;
         }
 
+        /* Fix placeholder text-transform for uppercase inputs */
+        input[style*="text-transform: uppercase"]::placeholder {
+            text-transform: none;
+        }
+        #postalCodeLookup::placeholder {
+            text-transform: none;
+        }
+
         .collapsible {
             cursor: pointer;
             user-select: none;
@@ -766,11 +775,11 @@
                 <div class="form-row">
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="postalCodeLookup">Postal Code</label>
-                        <input type="text" id="postalCodeLookup" placeholder="e.g., 1012 AB" maxlength="7" style="text-transform: uppercase;">
+                        <input type="text" id="postalCodeLookup" placeholder="1012 AB" maxlength="7" pattern="[0-9]{4}\s?[a-zA-Z]{2}" style="text-transform: uppercase;">
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="houseNumber">House Number</label>
-                        <input type="text" id="houseNumber" placeholder="e.g., 15" maxlength="10">
+                        <input type="text" id="houseNumber" placeholder="15" maxlength="10" inputmode="numeric" pattern="[0-9]+">
                     </div>
                     <div class="form-group" style="margin-bottom: 0;">
                         <label for="houseNumberAddition">Addition</label>
@@ -804,7 +813,7 @@
                 </div>
                 <div class="form-group">
                     <label for="volume">Total Volume (m³)</label>
-                    <input type="number" id="volume" placeholder="Auto-calculated or enter manually">
+                    <input type="number" id="volume" placeholder="Auto-calculated or enter manually" min="50" max="2000">
                     <div class="hint">From WOZ data, or floor area × ceiling height (default ×2.5m)</div>
                 </div>
             </div>
@@ -1067,7 +1076,7 @@
             <div class="form-row">
                 <div class="form-group">
                     <label for="userEmail">Email Address</label>
-                    <input type="email" id="userEmail" placeholder="your@email.com">
+                    <input type="email" id="userEmail" placeholder="your@email.com" required>
                     <div class="hint">We'll send your detailed report here</div>
                 </div>
                 <div class="form-group">
@@ -1079,7 +1088,7 @@
 
             <div class="form-group">
                 <label for="userName">Your Name</label>
-                <input type="text" id="userName" placeholder="Your name">
+                <input type="text" id="userNameInput" placeholder="Your name" required>
             </div>
         </div>
 
@@ -1147,10 +1156,10 @@
         </div>
     </div>
 
-    <div class="footer">
+    <footer class="footer">
         <p>Energy ROI Calculator - Netherlands Edition</p>
         <p>Helping Dutch homeowners make smart energy decisions</p>
-    </div>
+    </footer>
 
     <script>
         // Global error handler
@@ -1888,7 +1897,7 @@
         // Send email report via backend
         async function sendEmailReport() {
             const email = document.getElementById('userEmail').value.trim();
-            const name = document.getElementById('userName').value.trim();
+            const name = document.getElementById('userNameInput').value.trim();
             const statusEl = document.getElementById('actionStatus');
 
             if (!email) {
@@ -1934,7 +1943,7 @@
         // Open WhatsApp with pre-filled message
         function contactWhatsApp() {
             const phone = document.getElementById('userPhone').value.trim();
-            const name = document.getElementById('userName').value.trim() || 'A homeowner';
+            const name = document.getElementById('userNameInput').value.trim() || 'A homeowner';
             const statusEl = document.getElementById('actionStatus');
 
             // Business WhatsApp number from config
