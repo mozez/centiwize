@@ -822,9 +822,9 @@
             <h2><span class="icon">⚡</span> Energy Usage <span class="required-badge">Required</span></h2>
 
             <div class="energy-method-tabs">
-                <button class="active" onclick="switchEnergyMethod('simple')">Simple Monthly</button>
-                <button onclick="switchEnergyMethod('annual')">Annual Statement</button>
-                <button onclick="switchEnergyMethod('detailed')">Detailed Monthly</button>
+                <button class="active" onclick="switchEnergyMethod('simple', this)">Simple Monthly</button>
+                <button onclick="switchEnergyMethod('annual', this)">Annual Statement</button>
+                <button onclick="switchEnergyMethod('detailed', this)">Detailed Monthly</button>
             </div>
 
             <!-- Method A: Simple Monthly -->
@@ -1058,9 +1058,15 @@
                         <div class="hint">Check: www.ep-online.nl</div>
                     </div>
                     <div class="form-group">
-                        <label for="postalCode">Postal Code</label>
-                        <input type="text" id="postalCode" placeholder="e.g., 1012 AB">
-                        <div class="hint">For regional climate adjustment</div>
+                        <label for="roofOrientation">Roof Orientation</label>
+                        <select id="roofOrientation">
+                            <option value="">Select...</option>
+                            <option value="south">South</option>
+                            <option value="east-west">East/West</option>
+                            <option value="north">North</option>
+                            <option value="flat">Flat Roof</option>
+                        </select>
+                        <div class="hint">Relevant for solar panel efficiency</div>
                     </div>
                 </div>
             </div>
@@ -1091,7 +1097,7 @@
         </div>
 
         <!-- Calculate Button -->
-        <button class="btn" onclick="calculateROI()">Calculate My Savings</button>
+        <button class="btn" id="calcBtn" onclick="calculateROI()">Calculate My Savings</button>
 
         <!-- Results Section -->
         <div class="results" id="results">
@@ -1360,7 +1366,7 @@
             document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
 
             // Pre-fill contact form if on calculator
-            const nameField = document.getElementById('userName');
+            const nameField = document.getElementById('userNameInput');
             const emailField = document.getElementById('userEmail');
             if (nameField) nameField.value = name;
             if (emailField) emailField.value = user.email;
@@ -1636,6 +1642,9 @@
                 return;
             }
 
+            const saveBtn = event?.target?.closest('button');
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.style.opacity = '0.7'; }
+
             try {
                 const response = await fetch('/api/calculations', {
                     method: 'POST',
@@ -1672,6 +1681,8 @@
             } catch (error) {
                 console.error('Save calculation error:', error);
                 alert('Error saving: ' + error.message);
+            } finally {
+                if (saveBtn) { saveBtn.disabled = false; saveBtn.style.opacity = '1'; }
             }
         }
 
@@ -1818,6 +1829,7 @@
             const email = document.getElementById('userEmail').value.trim();
             const name = document.getElementById('userNameInput').value.trim();
             const statusEl = document.getElementById('actionStatus');
+            const emailBtn = event?.target?.closest('button');
 
             if (!email) {
                 statusEl.innerHTML = '<span style="color: #e74c3c;">Please enter your email address above.</span>';
@@ -1830,6 +1842,7 @@
                 return;
             }
 
+            if (emailBtn) { emailBtn.disabled = true; emailBtn.style.opacity = '0.7'; }
             statusEl.innerHTML = '<span style="color: #2d8f47;">Sending your report...</span>';
 
             try {
@@ -1856,6 +1869,8 @@
             } catch (error) {
                 console.error('Email error:', error);
                 statusEl.innerHTML = '<span style="color: #e74c3c;">Connection error. Please try again.</span>';
+            } finally {
+                if (emailBtn) { emailBtn.disabled = false; emailBtn.style.opacity = '1'; }
             }
         }
 
@@ -1894,6 +1909,14 @@
             statusEl.innerHTML = '<span style="color: #25D366;">✓ Opening WhatsApp...</span>';
         }
 
+        // Loading state helper
+        function setButtonLoading(btn, loading, originalText) {
+            if (!btn) return;
+            btn.disabled = loading;
+            btn.style.opacity = loading ? '0.7' : '1';
+            btn.textContent = loading ? 'Processing...' : originalText;
+        }
+
         // Track selected improvements
         const selectedImprovements = new Set();
 
@@ -1924,12 +1947,17 @@
                 selectedImprovements.has('solar') ? 'block' : 'none';
         }
 
-        function switchEnergyMethod(method) {
+        function switchEnergyMethod(method, clickedBtn) {
             // Update tabs
-            document.querySelectorAll('.energy-method-tabs button').forEach(btn => {
-                btn.classList.remove('active');
-            });
-            event.target.classList.add('active');
+            const tabs = document.querySelectorAll('.energy-method-tabs button');
+            tabs.forEach(btn => btn.classList.remove('active'));
+            if (clickedBtn) {
+                clickedBtn.classList.add('active');
+            } else {
+                // Fallback: activate by method index
+                const methodIndex = { simple: 0, annual: 1, detailed: 2 };
+                if (tabs[methodIndex[method]]) tabs[methodIndex[method]].classList.add('active');
+            }
 
             // Update content
             document.querySelectorAll('.energy-method-content').forEach(content => {
@@ -1980,9 +2008,29 @@
         }
 
         function calculateROI() {
+            // Validate required inputs
+            const errors = [];
+            const sqmVal = parseFloat(document.getElementById('squareMeters').value);
+            const volVal = parseFloat(document.getElementById('volume').value);
+
+            if (!sqmVal || sqmVal < 20 || sqmVal > 500) {
+                errors.push('Floor Area must be between 20 and 500 m².');
+            }
+            if (volVal && (volVal < 50 || volVal > 2000)) {
+                errors.push('Total Volume must be between 50 and 2,000 m³.');
+            }
+            if (selectedImprovements.size === 0) {
+                errors.push('Please select at least one energy improvement.');
+            }
+
+            if (errors.length > 0) {
+                alert('Please fix the following:\n\n• ' + errors.join('\n• '));
+                return;
+            }
+
             // Get input values
-            const squareMeters = parseFloat(document.getElementById('squareMeters').value) || 100;
-            const volume = parseFloat(document.getElementById('volume').value) || squareMeters * 2.5;
+            const squareMeters = sqmVal;
+            const volume = volVal || squareMeters * 2.5;
 
             // Get energy costs (from active method)
             let annualElectricCost = 0;
@@ -2092,6 +2140,15 @@
             // Show results
             document.getElementById('results').classList.add('visible');
             document.getElementById('results').scrollIntoView({ behavior: 'smooth' });
+
+            // Flash the calculate button to indicate success
+            const calcBtn = document.getElementById('calcBtn');
+            calcBtn.textContent = '✓ Calculated!';
+            calcBtn.style.background = '#2d8f47';
+            setTimeout(() => {
+                calcBtn.textContent = 'Calculate My Savings';
+                calcBtn.style.background = '';
+            }, 2000);
         }
 
         // Auto-calculate volume when square meters changes
