@@ -1662,9 +1662,21 @@
         async function loadProfileData() {
             if (!currentUser) return;
 
-            document.getElementById('profileEmail').value = currentUser.email;
+            document.getElementById('profileEmail').value = currentUser.email || '';
             document.getElementById('profileName').value = currentUser.user_metadata?.full_name || '';
-            document.getElementById('profilePhone').value = currentUser.user_metadata?.phone || '';
+
+            try {
+                const response = await fetch('/api/profile', { credentials: 'include' });
+                const data = await response.json();
+                if (data.success && data.profile) {
+                    document.getElementById('profilePhone').value = data.profile.phone || '';
+                    if (data.profile.full_name) {
+                        document.getElementById('profileName').value = data.profile.full_name;
+                    }
+                }
+            } catch (e) {
+                document.getElementById('profilePhone').value = '';
+            }
         }
 
         async function saveProfile() {
