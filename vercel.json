@@ -1,5 +1,7 @@
 {
   "rewrites": [
+    { "source": "/auth/callback", "destination": "/auth-callback.html" },
+    { "source": "/cw-admin-8k3m", "destination": "/admin.html" },
     { "source": "/api/(.*)", "destination": "/api/index.py" }
   ],
   "headers": [

@@ -16,6 +16,9 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_ANON_KEY = os.environ.get("SUPABASE_ANON_KEY", "")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY", "")
 KADASTER_API_KEY = os.environ.get("KADASTER_API_KEY", "")
+ADMIN_GITHUB_USERNAME = os.environ.get("ADMIN_GITHUB_USERNAME", "mozez")
+ADMIN_SECRET_PATH = os.environ.get("ADMIN_SECRET_PATH", "cw-admin-8k3m")
+SITE_URL = os.environ.get("SITE_URL", "https://centiwize.vercel.app")
 
 # CORS middleware
 app.add_middleware(
@@ -100,6 +103,11 @@ class EmailReportResponse(BaseModel):
     message: Optional[str] = None
     error: Optional[str] = None
 
+class OAuthCallbackRequest(BaseModel):
+    access_token: str
+    refresh_token: str
+
+
 # ============================================
 # HELPER FUNCTIONS
 # ============================================
@@ -166,7 +174,8 @@ async def get_config():
     """Return public configuration for the frontend"""
     return {
         "business_phone": BUSINESS_PHONE,
-        "auth_enabled": bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+        "auth_enabled": bool(SUPABASE_URL and SUPABASE_ANON_KEY),
+        "oauth_providers": ["google", "github", "apple"]
     }
 
 @app.get("/api/health", response_model=HealthResponse)
@@ -297,6 +306,73 @@ async def get_session(request: Request):
     if user:
         return {"success": True, "user": user}
     return {"success": False, "user": None}
+
+# ============================================
+# OAUTH ENDPOINTS
+# ============================================
+
+@app.get("/api/auth/oauth/{provider}")
+async def oauth_redirect(provider: str):
+    """Return Supabase OAuth redirect URL for the given provider"""
+    if not SUPABASE_URL:
+        raise HTTPException(status_code=500, detail="Authentication not configured")
+
+    valid_providers = ["google", "github", "apple"]
+    if provider not in valid_providers:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    redirect_url = (
+        f"{SUPABASE_URL}/auth/v1/authorize"
+        f"?provider={provider}"
+        f"&redirect_to={SITE_URL}/auth/callback"
+    )
+    return {"url": redirect_url}
+
+@app.post("/api/auth/oauth/callback")
+async def oauth_callback(body: OAuthCallbackRequest, response: Response):
+    """Validate OAuth tokens with Supabase and set session cookies"""
+    if not SUPABASE_URL:
+        return {"success": False, "error": "Authentication not configured"}
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Verify the access token with Supabase
+            result = await client.get(
+                f"{SUPABASE_URL}/auth/v1/user",
+                headers={
+                    "apikey": SUPABASE_ANON_KEY,
+                    "Authorization": f"Bearer {body.access_token}"
+                },
+                timeout=10.0
+            )
+
+            if not result.is_success:
+                return {"success": False, "error": "Invalid token"}
+
+            user = result.json()
+
+            # Set session cookies (same pattern as login)
+            response.set_cookie(
+                key="access_token",
+                value=body.access_token,
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                max_age=3600
+            )
+            response.set_cookie(
+                key="refresh_token",
+                value=body.refresh_token,
+                httponly=True,
+                secure=True,
+                samesite="lax",
+                max_age=60*60*24*30
+            )
+
+            return {"success": True, "user": user}
+
+        except Exception as e:
+            return {"success": False, "error": str(e)}
 
 @app.post("/api/auth/forgot-password")
 async def forgot_password(email: str = Query(...)):
@@ -526,6 +602,205 @@ async def mark_notification_read(notification_id: str, request: Request):
 
             return {"success": True}
 
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+# ============================================
+# ADMIN ENDPOINTS
+# ============================================
+
+async def verify_admin(request: Request) -> Dict:
+    """Verify the current user is an admin (GitHub-authenticated with matching username)"""
+    user = await get_current_user(request)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    identities = user.get("identities", [])
+    for identity in identities:
+        if identity.get("provider") == "github":
+            identity_data = identity.get("identity_data", {})
+            username = identity_data.get("user_name") or identity_data.get("preferred_username")
+            if username and username.lower() == ADMIN_GITHUB_USERNAME.lower():
+                return user
+
+    raise HTTPException(status_code=403, detail="Access denied: admin privileges required")
+
+@app.get("/api/admin/users")
+async def admin_list_users(
+    request: Request,
+    page: int = Query(1, ge=1),
+    per_page: int = Query(20, ge=1, le=100),
+    search: str = Query("")
+):
+    """List all users (admin only)"""
+    await verify_admin(request)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await client.get(
+                f"{SUPABASE_URL}/auth/v1/admin/users",
+                headers=get_service_headers(),
+                params={"page": page, "per_page": per_page},
+                timeout=15.0
+            )
+
+            if result.status_code >= 400:
+                raise HTTPException(status_code=result.status_code, detail="Failed to fetch users")
+
+            data = result.json()
+            users = data.get("users", [])
+
+            # Server-side search filter
+            if search:
+                search_lower = search.lower()
+                users = [
+                    u for u in users
+                    if search_lower in (u.get("email") or "").lower()
+                    or search_lower in (u.get("user_metadata", {}).get("full_name") or "").lower()
+                ]
+
+            return {
+                "success": True,
+                "users": users,
+                "total": data.get("total", len(users)),
+                "page": page,
+                "per_page": per_page
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+@app.get("/api/admin/stats")
+async def admin_stats(request: Request):
+    """Get user statistics (admin only)"""
+    await verify_admin(request)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Fetch all users to compute stats
+            all_users = []
+            page = 1
+            while True:
+                result = await client.get(
+                    f"{SUPABASE_URL}/auth/v1/admin/users",
+                    headers=get_service_headers(),
+                    params={"page": page, "per_page": 100},
+                    timeout=15.0
+                )
+                if result.status_code >= 400:
+                    break
+                data = result.json()
+                batch = data.get("users", [])
+                if not batch:
+                    break
+                all_users.extend(batch)
+                if len(all_users) >= data.get("total", 0):
+                    break
+                page += 1
+
+            from datetime import datetime, timedelta, timezone
+            now = datetime.now(timezone.utc)
+            seven_days_ago = now - timedelta(days=7)
+            thirty_days_ago = now - timedelta(days=30)
+
+            total = len(all_users)
+            confirmed = 0
+            last_7_days = 0
+            last_30_days = 0
+
+            for u in all_users:
+                created = u.get("created_at", "")
+                if created:
+                    try:
+                        dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+                        if dt >= seven_days_ago:
+                            last_7_days += 1
+                        if dt >= thirty_days_ago:
+                            last_30_days += 1
+                    except (ValueError, TypeError):
+                        pass
+                if u.get("email_confirmed_at") or u.get("phone_confirmed_at"):
+                    confirmed += 1
+
+            return {
+                "success": True,
+                "total_users": total,
+                "last_7_days": last_7_days,
+                "last_30_days": last_30_days,
+                "confirmed": confirmed
+            }
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: str, request: Request):
+    """Delete a user (admin only, cannot delete self)"""
+    admin_user = await verify_admin(request)
+
+    if admin_user["id"] == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
+    async with httpx.AsyncClient() as client:
+        try:
+            result = await client.delete(
+                f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
+                headers=get_service_headers(),
+                timeout=10.0
+            )
+
+            if result.status_code >= 400:
+                raise HTTPException(status_code=result.status_code, detail="Failed to delete user")
+
+            return {"success": True}
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+@app.post("/api/admin/users/{user_id}/reset-password")
+async def admin_reset_password(user_id: str, request: Request):
+    """Send password reset email to a user (admin only)"""
+    await verify_admin(request)
+
+    async with httpx.AsyncClient() as client:
+        try:
+            # Get user email first
+            user_result = await client.get(
+                f"{SUPABASE_URL}/auth/v1/admin/users/{user_id}",
+                headers=get_service_headers(),
+                timeout=10.0
+            )
+
+            if user_result.status_code >= 400:
+                raise HTTPException(status_code=404, detail="User not found")
+
+            user_data = user_result.json()
+            email = user_data.get("email")
+
+            if not email:
+                raise HTTPException(status_code=400, detail="User has no email address")
+
+            # Send password reset
+            result = await client.post(
+                f"{SUPABASE_URL}/auth/v1/recover",
+                headers=get_supabase_headers(),
+                json={"email": email},
+                timeout=10.0
+            )
+
+            if result.status_code >= 400:
+                raise HTTPException(status_code=500, detail="Failed to send reset email")
+
+            return {"success": True, "message": f"Password reset email sent to {email}"}
+
+        except HTTPException:
+            raise
         except Exception as e:
             return {"success": False, "error": str(e)}
 
